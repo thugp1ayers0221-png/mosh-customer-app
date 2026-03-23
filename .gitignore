@@ -1,4 +1,4 @@
-mosh_customers.db
+# mosh_customers.db は意図的に含める（Streamlit Cloud用）
 __pycache__/
 *.pyc
 .env
