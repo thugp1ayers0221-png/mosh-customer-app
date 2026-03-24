@@ -396,6 +396,18 @@ st.markdown("""
   font-family: 'Noto Sans JP', sans-serif !important;
   font-weight: 500 !important;
 }
+/* 顧客カードボタン */
+.stButton > button[kind="secondary"] {
+  text-align: left !important;
+  white-space: pre-line !important;
+  background: white !important;
+  color: #2D1F0F !important;
+  border: 1px solid #e8e0d5 !important;
+  min-height: 60px !important;
+  line-height: 1.6 !important;
+  font-size: 0.92rem !important;
+  padding: 10px 14px !important;
+}
 .stSelectbox > div > div,
 .stTextInput > div > div > input {
   border-radius: 10px !important;
@@ -728,13 +740,12 @@ def show_home():
     # 件数表示
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
-    # ── 顧客カード一覧（ランクバー＋ボタン2列構成）──
-    RANK_COLORS = {"V":"#A855F7","S":"#C9A84C","A":"#7B5230","B":"#5B7FA6","C":"#9E9E9E"}
+    # ── 顧客カード一覧 ──
+    RANK_DOT = {"V":"🟣","S":"🟡","A":"🟤","B":"🔵","C":"⚫"}
 
-    st.markdown('<div class="card-list">', unsafe_allow_html=True)
     for c in customers:
         rank      = c.get("rank","A")
-        bar_color = RANK_COLORS.get(rank, "#9E9E9E")
+        dot       = RANK_DOT.get(rank, "⚫")
         name      = c['name']
         store_lbl = c['primary_store'] or '未設定'
         member_mark = "✅" if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
@@ -743,7 +754,6 @@ def show_home():
         this_m = c.get("visits_this_month") or 0
         last_m = c.get("visits_last_month") or 0
 
-        # 最終来店日数
         try:
             days_ago = (today - _date.fromisoformat(c["last_visit_date"] or "")).days
             days_label = "今日" if days_ago==0 else ("昨日" if days_ago==1 else f"{days_ago}日前")
@@ -751,33 +761,21 @@ def show_home():
             days_label = "-"
             days_ago = 999
 
-        # トレンド
-        if this_m > last_m > 0:     trend = f"↑+{this_m-last_m}"
-        elif this_m < last_m > 0:   trend = f"↓{this_m-last_m}"
-        elif this_m > 0 == last_m:  trend = "✨新"
-        else:                        trend = ""
+        if this_m > last_m > 0:    trend = f" ↑+{this_m-last_m}"
+        elif this_m < last_m > 0:  trend = f" ↓{this_m-last_m}"
+        elif this_m > 0 == last_m: trend = " ✨新"
+        else:                       trend = ""
 
-        days_color = "#16A34A" if days_ago <= 7 else "#bbb"
-        line1 = f"{member_mark}**{name}**{cross_mark}　{trend}"
-        line2 = f"{store_lbl}　今月 **{this_m}回**　· {days_label}"
+        label = f"{dot} {member_mark}{name}{cross_mark}{trend}\n   {store_lbl}  今月{this_m}回 · {days_label}"
 
-        col_bar, col_btn = st.columns([1, 20])
-        with col_bar:
-            st.markdown(
-                f'<div style="background:{bar_color};border-radius:6px;'
-                f'height:64px;margin-top:4px;"></div>',
-                unsafe_allow_html=True
-            )
-        with col_btn:
-            if st.button(f"{line1}\n{line2}", key=f"open_{c['id']}", use_container_width=True):
-                st.session_state.selected_customer = c["id"]
-                st.session_state.page = "detail"
-                new_params = {"p": "detail", "id": str(c["id"])}
-                if st.session_state.login_token:
-                    new_params["t"] = st.session_state.login_token
-                st.query_params.update(new_params)
-                st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+        if st.button(label, key=f"open_{c['id']}", use_container_width=True):
+            st.session_state.selected_customer = c["id"]
+            st.session_state.page = "detail"
+            new_params = {"p": "detail", "id": str(c["id"])}
+            if st.session_state.login_token:
+                new_params["t"] = st.session_state.login_token
+            st.query_params.update(new_params)
+            st.rerun()
 
 # ─────────────────────────────────────────
 # 顧客詳細
