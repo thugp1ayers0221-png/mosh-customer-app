@@ -87,6 +87,12 @@ st.markdown("""
   --bg:          #F0F7FA;
 }
 
+/* 上部余白を削除 */
+.stApp > header { display: none !important; }
+[data-testid="stAppViewBlockContainer"] { padding-top: 0 !important; }
+[data-testid="stMainBlockContainer"] { padding-top: 0 !important; }
+.block-container { padding-top: 0.5rem !important; }
+
 /* 全体背景 */
 .stApp {
   background-color: var(--bg);
