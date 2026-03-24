@@ -9,7 +9,7 @@ import plotly.express as px
 from datetime import datetime, date
 import random
 import string
-import db
+import mosh_db as db
 
 # ─────────────────────────────────────────
 # ページ設定
@@ -308,10 +308,15 @@ footer                                  { display: none !important; }
 .stDeployButton                        { display: none !important; }
 [data-testid="stStatusWidget"]         { display: none !important; }
 [data-testid="stToolbarActionButton"]  { display: none !important; }
-/* アプリ下部のStreamlit広告バナー */
+/* アプリ下部のStreamlit広告バナー（"Created by" / "Hosted with Streamlit"）*/
 [data-testid="stBottom"]               { display: none !important; }
-.viewerBadge_container__r5tak         { display: none !important; }
+[class*="viewerBadge"]                 { display: none !important; }
+[class*="badge"]                       { display: none !important; }
 #stDecoration                          { display: none !important; }
+.st-emotion-cache-1dp5vir              { display: none !important; }
+.st-emotion-cache-15ecox0              { display: none !important; }
+/* 上部のStreamlitツールバー帯（"Hosted with Streamlit" 上部）*/
+[data-testid="stAppViewBlockContainer"] > div:first-child { padding-top: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
