@@ -39,6 +39,17 @@ def migrate_db():
         user_cols = [row[1] for row in conn.execute("PRAGMA table_info(users)")]
         if "email" not in user_cols:
             conn.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
+        # 招待トークンテーブル
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS invitations (
+                token TEXT PRIMARY KEY,
+                role  TEXT NOT NULL DEFAULT 'staff',
+                store TEXT DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now')),
+                expires_at TEXT DEFAULT (datetime('now','+7 days')),
+                used INTEGER DEFAULT 0
+            )
+        """)
 
 def get_customers(store=None, period=None, rank=None, search=None,
                   order_by="total_visits", limit=200):
@@ -361,3 +372,32 @@ def delete_session_token(token: str):
             conn.execute("DELETE FROM session_tokens WHERE token=?", (token,))
         except Exception:
             pass
+
+# ─────────────────────────────────────────
+# 招待トークン
+# ─────────────────────────────────────────
+def create_invitation(role: str, store: str = "") -> str:
+    """招待トークンを発行してURLを返す"""
+    import secrets
+    token = secrets.token_urlsafe(24)
+    with get_conn() as conn:
+        conn.execute("DELETE FROM invitations WHERE expires_at < datetime('now')")
+        conn.execute(
+            "INSERT INTO invitations (token, role, store) VALUES (?,?,?)",
+            (token, role, store)
+        )
+    return token
+
+def get_invitation(token: str):
+    """招待トークンを検証して {role, store} を返す。無効なら None"""
+    with get_conn() as conn:
+        row = conn.execute("""
+            SELECT * FROM invitations
+            WHERE token=? AND used=0 AND expires_at > datetime('now')
+        """, (token,)).fetchone()
+        return dict(row) if row else None
+
+def use_invitation(token: str):
+    """招待トークンを使用済みにする"""
+    with get_conn() as conn:
+        conn.execute("UPDATE invitations SET used=1 WHERE token=?", (token,))

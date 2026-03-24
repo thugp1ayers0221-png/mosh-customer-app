@@ -888,67 +888,73 @@ def show_user_management():
 
     STORES = ["", "柏", "東村山", "おおたかの森", "メイソンズ", "西船橋"]
 
-    with st.form("add_user_form"):
-        new_username = st.text_input("ユーザー名（ログインID）", placeholder="例: tanaka_kashiwa")
-        new_email    = st.text_input("メールアドレス（招待メール送信用）", placeholder="例: tanaka@example.com")
-        new_role = st.selectbox("権限", ["staff","manager","owner"],
-            format_func=lambda x: {"staff":"スタッフ","manager":"店長","owner":"オーナー"}[x],
-            key="new_user_role")
-        new_store = st.selectbox("担当店舗", STORES,
+    st.markdown("役割・店舗を選んで招待URLを発行 → スタッフに送るだけでOK")
+
+    with st.form("invite_form"):
+        inv_role = st.selectbox("権限", ["staff", "manager"],
+            format_func=lambda x: {"staff":"スタッフ","manager":"店長"}[x],
+            key="inv_role")
+        inv_store = st.selectbox("担当店舗", STORES,
             format_func=lambda x: x if x else "（全店舗）",
-            key="new_user_store")
-        auto_pw = generate_password()
-        new_password = st.text_input("パスワード", value=auto_pw,
-            help="自動生成されています。変更可能です。")
-        submitted = st.form_submit_button("アカウントを作成 & 招待メールを送る", type="primary", use_container_width=True)
+            key="inv_store")
+        inv_submitted = st.form_submit_button("招待URLを発行", type="primary", use_container_width=True)
 
-    if submitted:
-        if not new_username.strip():
-            st.error("ユーザー名を入力してください")
-        else:
-            ok = db.add_user(new_username.strip(), new_password, new_role, new_store, new_email.strip())
-            if ok:
-                role_jp = {"staff":"スタッフ","manager":"店長","owner":"オーナー"}[new_role]
-                APP_URL  = "https://mosh-customer-app.streamlit.app"
-                invite_msg = (
-                    f"【MOSH 顧客管理システム】ログイン情報\n\n"
-                    f"🌐 URL: {APP_URL}\n"
-                    f"👤 ユーザー名: {new_username.strip()}\n"
-                    f"🔑 パスワード: {new_password}\n"
-                    f"役割: {role_jp}" + (f" / {new_store}" if new_store else "")
-                )
-                # メール送信を試みる（Streamlit Secrets にSMTP設定があれば）
-                mail_sent = False
-                if new_email.strip():
-                    try:
-                        import smtplib
-                        from email.mime.text import MIMEText
-                        _s = st.secrets.get("smtp", {})
-                        if _s:
-                            msg = MIMEText(invite_msg, "plain", "utf-8")
-                            msg["Subject"] = "【MOSH】顧客管理システムへの招待"
-                            msg["From"]    = _s["user"]
-                            msg["To"]      = new_email.strip()
-                            with smtplib.SMTP_SSL(_s["host"], int(_s.get("port", 465))) as srv:
-                                srv.login(_s["user"], _s["password"])
-                                srv.send_message(msg)
-                            mail_sent = True
-                    except Exception:
-                        mail_sent = False
-
-                st.success("✅ アカウントを作成しました" + ("　招待メールを送信しました ✉️" if mail_sent else ""))
-                st.info(
-                    "**招待情報（LINEやDiscordで共有してください）**\n\n"
-                    + invite_msg.replace("\n", "\n\n")
-                )
-                st.rerun()
-            else:
-                st.error("そのユーザー名はすでに使われています")
+    if inv_submitted:
+        token = db.create_invitation(inv_role, inv_store)
+        APP_URL = "https://mosh-customer-app.streamlit.app"
+        invite_url = f"{APP_URL}?invite={token}"
+        role_jp = {"staff":"スタッフ","manager":"店長"}[inv_role]
+        store_str = inv_store if inv_store else "全店舗"
+        st.success("✅ 招待URLを発行しました（有効期限: 7日間）")
+        st.code(invite_url, language=None)
+        st.caption(f"権限: {role_jp}　店舗: {store_str}　← このURLをLINE/Discordで送ってください")
 
 # ─────────────────────────────────────────
 # メインルーティング
 # ─────────────────────────────────────────
-if not st.session_state.user:
+_invite_token = st.query_params.get("invite", None)
+
+if _invite_token and not st.session_state.user:
+    # ── 招待URL経由の新規登録画面 ──
+    inv = db.get_invitation(_invite_token)
+    if not inv:
+        st.error("この招待リンクは無効か期限切れです。オーナーに新しいリンクを発行してもらってください。")
+    else:
+        role_jp  = {"staff":"スタッフ","manager":"店長","owner":"オーナー"}.get(inv["role"],"スタッフ")
+        store_str = inv["store"] if inv["store"] else "全店舗"
+        st.markdown("""
+        <div style="text-align:center;padding:20px 0 8px;">
+          <img src="https://shisha-mosh.jp/images/top/logo.png"
+               alt="MOSH" style="height:40px;object-fit:contain;" />
+          <div style="margin-top:6px;font-size:0.85rem;color:#666;">顧客管理システム</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown(f"#### 🎉 アカウント登録")
+        st.caption(f"権限: **{role_jp}**　担当店舗: **{store_str}**")
+        with st.form("register_form"):
+            reg_username = st.text_input("使いたいID（ログインID）", placeholder="例: tanaka")
+            reg_password = st.text_input("パスワード", type="password",
+                placeholder="オーナーから聞いたパスワードを入力")
+            reg_submit = st.form_submit_button("登録してはじめる", type="primary",
+                use_container_width=True)
+        if reg_submit:
+            if not reg_username.strip():
+                st.error("IDを入力してください")
+            elif len(reg_password) < 4:
+                st.error("パスワードが短すぎます")
+            else:
+                ok = db.add_user(reg_username.strip(), reg_password, inv["role"], inv["store"])
+                if ok:
+                    db.use_invitation(_invite_token)
+                    user = db.verify_user(reg_username.strip(), reg_password)
+                    if user:
+                        st.session_state.user = user
+                        st.query_params.clear()
+                        st.rerun()
+                else:
+                    st.error("そのIDはすでに使われています。別のIDを入力してください。")
+
+elif not st.session_state.user:
     show_login()
 else:
     show_header()
