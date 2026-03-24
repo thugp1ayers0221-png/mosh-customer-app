@@ -331,6 +331,11 @@ if "selected_customer" not in st.session_state:
     st.session_state.selected_customer = None
 if "login_token" not in st.session_state:
     st.session_state.login_token = None
+if "invite_action" not in st.session_state:
+    st.session_state.invite_action = None  # "register" or "login"
+
+# 共通パスワード（全スタッフ共通）
+SHARED_PASSWORD = "MOSH4148"
 
 # URLトークンからの自動ログイン
 if st.session_state.user is None:
@@ -356,17 +361,56 @@ if st.session_state.user is not None:
             st.session_state.page = "home"
             st.session_state.selected_customer = None
 
-# ─── スマホ戻るボタン: popstateでリロード ───
+# ─── Cookie からセッショントークンを読み込んでURLに乗せる ───
+# （ページロード時に毎回実行。cookieにトークンがあればURL経由で自動ログインを発動）
 st.components.v1.html("""
 <script>
 (function(){
-  // ブラウザの戻る/進むボタンでURLが変わったらStreamlitをリロード
-  window.addEventListener('popstate', function(e) {
-    window.location.reload();
+  function getCookie(name) {
+    try {
+      var cookies = (window.parent || window).document.cookie.split(';');
+      for (var i = 0; i < cookies.length; i++) {
+        var c = cookies[i].trim();
+        if (c.startsWith(name + '=')) return c.substring(name.length + 1);
+      }
+    } catch(e) {}
+    return null;
+  }
+  var token = getCookie('mosh_token');
+  var win = window.parent || window;
+  var params = new URLSearchParams(win.location.search);
+  // cookieにトークンがあり、URLにまだ乗っていない場合だけリダイレクト
+  if (token && !params.get('t')) {
+    params.set('t', token);
+    win.location.search = params.toString();
+  }
+  // スマホ戻るボタン: popstateでリロード
+  win.addEventListener('popstate', function(e) {
+    win.location.reload();
   });
 })();
 </script>
 """, height=0)
+
+def set_auth_cookie(token: str):
+    """ログイントークンをブラウザcookieに保存（30日）"""
+    st.components.v1.html(f"""<script>
+(function(){{
+  var d = new Date();
+  d.setTime(d.getTime() + 30*24*60*60*1000);
+  var cookie = 'mosh_token={token}; expires=' + d.toUTCString() + '; path=/; SameSite=Lax';
+  try {{ (window.parent || window).document.cookie = cookie; }} catch(e) {{}}
+}})();
+</script>""", height=0)
+
+def clear_auth_cookie():
+    """ログアウト時にcookieを削除"""
+    st.components.v1.html("""<script>
+(function(){
+  var cookie = 'mosh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+  try { (window.parent || window).document.cookie = cookie; } catch(e) {}
+})();
+</script>""", height=0)
 
 RANK_LABEL = {"V": "VIP", "S": "S", "A": "A", "B": "B", "C": "C"}
 RANK_DESC  = {
@@ -412,6 +456,7 @@ def show_login():
                         token = db.create_session_token(user["id"])
                         st.session_state.login_token = token
                         st.query_params["t"] = token
+                        set_auth_cookie(token)
                     st.rerun()
                 else:
                     st.error("ユーザー名またはパスワードが違います")
@@ -923,44 +968,88 @@ def show_user_management():
 _invite_token = st.query_params.get("invite", None)
 
 if _invite_token and not st.session_state.user:
-    # ── 招待URL経由の新規登録画面 ──
+    # ── 招待URL経由のランディング ──
     inv = db.get_invitation(_invite_token)
+
+    # ロゴ共通表示
+    st.markdown("""
+    <div style="text-align:center;padding:24px 0 8px;">
+      <img src="https://shisha-mosh.jp/images/top/logo.png"
+           alt="MOSH" style="height:44px;object-fit:contain;" />
+      <div style="margin-top:6px;font-size:0.85rem;color:#666;">顧客管理システム</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     if not inv:
         st.error("この招待リンクは無効か期限切れです。オーナーに新しいリンクを発行してもらってください。")
-    else:
-        role_jp  = {"staff":"スタッフ","manager":"店長","owner":"オーナー","executive":"経営陣"}.get(inv["role"],"スタッフ")
+
+    elif st.session_state.invite_action is None:
+        # ── ① ボタン選択画面 ──
+        st.markdown("<div style='text-align:center;font-size:1.1rem;font-weight:600;margin-bottom:20px;'>はじめてですか？</div>", unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🆕 新規登録", use_container_width=True, type="primary"):
+                st.session_state.invite_action = "register"
+                st.rerun()
+        with col2:
+            if st.button("🔑 ログイン", use_container_width=True):
+                st.session_state.invite_action = "login"
+                st.rerun()
+
+    elif st.session_state.invite_action == "register":
+        # ── ② 新規登録：IDだけ決める ──
+        role_jp   = {"staff":"スタッフ","manager":"店長","owner":"オーナー","executive":"経営陣"}.get(inv["role"],"スタッフ")
         store_str = inv["store"] if inv["store"] else "全店舗"
-        st.markdown("""
-        <div style="text-align:center;padding:20px 0 8px;">
-          <img src="https://shisha-mosh.jp/images/top/logo.png"
-               alt="MOSH" style="height:40px;object-fit:contain;" />
-          <div style="margin-top:6px;font-size:0.85rem;color:#666;">顧客管理システム</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown(f"#### 🎉 アカウント登録")
-        st.caption(f"権限: **{role_jp}**　担当店舗: **{store_str}**")
+        st.markdown("#### 🎉 アカウント登録")
+        st.caption(f"権限: **{role_jp}**　担当: **{store_str}**")
         with st.form("register_form"):
-            reg_username = st.text_input("使いたいID（ログインID）", placeholder="例: tanaka")
-            reg_password = st.text_input("パスワード", type="password",
-                placeholder="オーナーから聞いたパスワードを入力")
-            reg_submit = st.form_submit_button("登録してはじめる", type="primary",
-                use_container_width=True)
+            reg_username = st.text_input("自分のID（ログインIDになります）", placeholder="例: tanaka")
+            reg_submit = st.form_submit_button("登録してはじめる", type="primary", use_container_width=True)
         if reg_submit:
             if not reg_username.strip():
                 st.error("IDを入力してください")
-            elif len(reg_password) < 4:
-                st.error("パスワードが短すぎます")
             else:
-                ok = db.add_user(reg_username.strip(), reg_password, inv["role"], inv["store"])
+                ok = db.add_user(reg_username.strip(), SHARED_PASSWORD, inv["role"], inv["store"])
                 if ok:
                     db.use_invitation(_invite_token)
-                    user = db.verify_user(reg_username.strip(), reg_password)
+                    user = db.verify_user(reg_username.strip(), SHARED_PASSWORD)
                     if user:
+                        token = db.create_session_token(user["id"])
                         st.session_state.user = user
+                        st.session_state.login_token = token
+                        set_auth_cookie(token)
                         st.query_params.clear()
+                        st.query_params["t"] = token
                         st.rerun()
                 else:
-                    st.error("そのIDはすでに使われています。別のIDを入力してください。")
+                    st.error("そのIDはすでに使われています。別のIDを試してください。")
+        if st.button("← 戻る", key="back_from_register"):
+            st.session_state.invite_action = None
+            st.rerun()
+
+    elif st.session_state.invite_action == "login":
+        # ── ③ ログインフォーム（既存アカウント） ──
+        st.markdown("#### 🔑 ログイン")
+        with st.form("invite_login_form"):
+            username = st.text_input("ユーザーID", placeholder="自分のIDを入力")
+            password = st.text_input("パスワード", type="password", placeholder="パスワードを入力")
+            remember = st.checkbox("ログイン状態を保持する（30日間）", value=True)
+            login_submit = st.form_submit_button("ログイン", type="primary", use_container_width=True)
+        if login_submit:
+            user = db.verify_user(username, password)
+            if user:
+                st.session_state.user = user
+                if remember:
+                    token = db.create_session_token(user["id"])
+                    st.session_state.login_token = token
+                    st.query_params["t"] = token
+                    set_auth_cookie(token)
+                st.rerun()
+            else:
+                st.error("IDまたはパスワードが違います")
+        if st.button("← 戻る", key="back_from_login"):
+            st.session_state.invite_action = None
+            st.rerun()
 
 elif not st.session_state.user:
     show_login()
