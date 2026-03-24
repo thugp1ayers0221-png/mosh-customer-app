@@ -402,6 +402,11 @@ footer                                  { display: none !important; }
 .st-emotion-cache-15ecox0              { display: none !important; }
 /* 上部のStreamlitツールバー帯（"Hosted with Streamlit" 上部）*/
 [data-testid="stAppViewBlockContainer"] > div:first-child { padding-top: 0 !important; }
+/* 再実行中の白いもやオーバーレイを非表示 */
+[data-testid="stAppViewBlockContainer"] { opacity: 1 !important; }
+.main .block-container { opacity: 1 !important; }
+div[class*="withScreencast"] { opacity: 1 !important; }
+iframe[title="streamlit_component"] { opacity: 1 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1227,17 +1232,54 @@ def show_operations():
             repeat_count = st.number_input("リピート来店", min_value=0, value=0, step=1, key="ops_repeat")
         try:
             all_customers = db.get_all_customers(store if store and store != "本部" else None)
-            customer_names = [c["name"] for c in all_customers if c.get("name")]
+            customer_names = sorted([c["name"] for c in all_customers if c.get("name")])
         except Exception:
             customer_names = []
-        selected_visitors = st.multiselect(
-            "来店者（顧客DBから選択）", options=customer_names,
-            key="ops_visitors_select", placeholder="名前を入力して検索...")
-        extra_visitors = st.text_area("DBにない来店者（1行1名）",
-            placeholder="新規のお客様など", height=80, key="ops_visitors_extra")
-        all_visitor_names = "\n".join(selected_visitors)
-        if extra_visitors.strip():
-            all_visitor_names += ("\n" if all_visitor_names else "") + extra_visitors.strip()
+
+        # 来店者リスト（session_stateで管理）
+        if "ops_visitor_list" not in st.session_state:
+            st.session_state.ops_visitor_list = []
+
+        st.markdown("**来店者**")
+        visitor_search = st.text_input(
+            "名前を入力（予測変換）",
+            placeholder="あ → 朝見さん…",
+            key="ops_visitor_search"
+        )
+        # 入力に応じて候補を表示
+        if visitor_search:
+            candidates = [n for n in customer_names if visitor_search in n][:8]
+            if candidates:
+                cols = st.columns(min(len(candidates), 4))
+                for i, name in enumerate(candidates):
+                    with cols[i % 4]:
+                        if st.button(name, key=f"cand_{name}", use_container_width=True):
+                            if name not in st.session_state.ops_visitor_list:
+                                st.session_state.ops_visitor_list.append(name)
+                            st.rerun()
+            else:
+                # DBにない名前はそのまま追加できる
+                if st.button(f"「{visitor_search}」を追加", key="cand_new", use_container_width=True):
+                    if visitor_search not in st.session_state.ops_visitor_list:
+                        st.session_state.ops_visitor_list.append(visitor_search)
+                    st.rerun()
+
+        # 選択済みリスト表示
+        if st.session_state.ops_visitor_list:
+            st.markdown("**追加済み：**")
+            for name in list(st.session_state.ops_visitor_list):
+                c1, c2 = st.columns([5, 1])
+                with c1:
+                    st.markdown(f"• {name}")
+                with c2:
+                    if st.button("✕", key=f"del_{name}"):
+                        st.session_state.ops_visitor_list.remove(name)
+                        st.rerun()
+            if st.button("🗑 リストをクリア", key="ops_clear_visitors"):
+                st.session_state.ops_visitor_list = []
+                st.rerun()
+
+        all_visitor_names = "\n".join(st.session_state.ops_visitor_list)
         done_today    = st.text_area("今日やったこと（1行1項目）",
             placeholder="・清掃\n・SNS投稿", height=100, key="ops_done")
         todo_tomorrow = st.text_area("明日やってほしいこと（1行1項目）",
