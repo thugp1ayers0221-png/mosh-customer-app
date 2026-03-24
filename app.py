@@ -421,7 +421,7 @@ def show_login():
 # ─────────────────────────────────────────
 def show_header():
     user = st.session_state.user
-    role_label = {"owner":"オーナー","manager":"店長","staff":"スタッフ"}.get(user["role"],"")
+    role_label = {"owner":"オーナー","manager":"店長","staff":"スタッフ","executive":"経営陣"}.get(user["role"],"")
     store_label = f" · {user['store']}" if user.get("store") else ""
     st.markdown(f"""
     <div class="mosh-header">
@@ -444,7 +444,7 @@ def show_home():
     stores = ["全店舗"] + db.get_stores()
     periods = ["全期間"] + db.get_available_periods()
 
-    # 店長は自店舗固定
+    # 店長は自店舗固定（経営陣・オーナーは全店舗閲覧可）
     if user["role"] == "manager" and user.get("store"):
         default_store = user["store"]
         store_disabled = True
@@ -484,7 +484,7 @@ def show_home():
 
     # S候補の通知
     s_candidates = [c for c in customers if c["total_visits"] >= 10 and c["rank"] == "A"]
-    if s_candidates and user["role"] in ("owner","manager"):
+    if s_candidates and user["role"] in ("owner","manager","executive"):
         with st.expander(f"⚠️ Sランク候補 {len(s_candidates)}名（来店10回以上・未昇格）"):
             for c in s_candidates[:5]:
                 col1, col2 = st.columns([4,1])
@@ -577,7 +577,7 @@ def show_detail():
     """, unsafe_allow_html=True)
 
     # クロスストア警告
-    if c["cross_store_flag"] and user["role"] in ("owner","manager"):
+    if c["cross_store_flag"] and user["role"] in ("owner","manager","executive"):
         st.markdown("""
         <div class="cross-store-banner">
         ⚠️ 他店舗に同じ名前の顧客がいます。同一人物ですか？
@@ -693,7 +693,7 @@ def show_detail():
                 st.rerun()
 
         # ランク変更（店長・オーナーのみ）
-        if user["role"] in ("owner","manager"):
+        if user["role"] in ("owner","manager","executive"):
             st.divider()
             st.markdown("**🏷 ランク設定**")
             current_rank = c.get("rank","A")
@@ -771,7 +771,7 @@ def show_dashboard():
     stores = ["全店舗"] + db.get_stores()
     periods = ["全期間"] + db.get_available_periods()
 
-    if user["role"] == "manager" and user.get("store"):
+    if user["role"] == "manager" and user.get("store") and user["store"] != "本部":
         default_store = user["store"]
     else:
         default_store = "全店舗"
@@ -874,7 +874,7 @@ def show_user_management():
 
     # 現在のユーザー一覧
     users = db.get_all_users()
-    role_label = {"owner":"オーナー","manager":"店長","staff":"スタッフ"}
+    role_label = {"owner":"オーナー","manager":"店長","staff":"スタッフ","executive":"経営陣"}
     current_user = st.session_state.user
 
     st.caption(f"登録済み: {len(users)}名")
@@ -894,13 +894,13 @@ def show_user_management():
     st.divider()
     st.markdown("#### ➕ 新しいスタッフを追加")
 
-    STORES = ["", "柏", "東村山", "おおたかの森", "メイソンズ", "西船橋"]
+    STORES = ["", "柏", "東村山", "おおたかの森", "メイソンズ", "西船橋", "本部"]
 
     st.markdown("役割・店舗を選んで招待URLを発行 → スタッフに送るだけでOK")
 
     with st.form("invite_form"):
-        inv_role = st.selectbox("権限", ["staff", "manager"],
-            format_func=lambda x: {"staff":"スタッフ","manager":"店長"}[x],
+        inv_role = st.selectbox("権限", ["staff", "manager", "executive"],
+            format_func=lambda x: {"staff":"スタッフ","manager":"店長","executive":"経営陣"}[x],
             key="inv_role")
         inv_store = st.selectbox("担当店舗", STORES,
             format_func=lambda x: x if x else "（全店舗）",
@@ -911,7 +911,7 @@ def show_user_management():
         token = db.create_invitation(inv_role, inv_store)
         APP_URL = "https://mosh-customer-app.streamlit.app"
         invite_url = f"{APP_URL}?invite={token}"
-        role_jp = {"staff":"スタッフ","manager":"店長"}[inv_role]
+        role_jp = {"staff":"スタッフ","manager":"店長","executive":"経営陣"}[inv_role]
         store_str = inv_store if inv_store else "全店舗"
         st.success("✅ 招待URLを発行しました（有効期限: 7日間）")
         st.code(invite_url, language=None)
@@ -928,7 +928,7 @@ if _invite_token and not st.session_state.user:
     if not inv:
         st.error("この招待リンクは無効か期限切れです。オーナーに新しいリンクを発行してもらってください。")
     else:
-        role_jp  = {"staff":"スタッフ","manager":"店長","owner":"オーナー"}.get(inv["role"],"スタッフ")
+        role_jp  = {"staff":"スタッフ","manager":"店長","owner":"オーナー","executive":"経営陣"}.get(inv["role"],"スタッフ")
         store_str = inv["store"] if inv["store"] else "全店舗"
         st.markdown("""
         <div style="text-align:center;padding:20px 0 8px;">
