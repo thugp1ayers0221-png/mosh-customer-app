@@ -16,40 +16,98 @@ def get_conn():
         conn.close()
 
 def migrate_db():
-    """DBスキーマの自動マイグレーション（カラム追加など）"""
-    with get_conn() as conn:
-        # customers テーブルの既存カラムを確認
-        cols = [row[1] for row in conn.execute("PRAGMA table_info(customers)")]
-        # top_change_bonus カラムが無ければ追加
-        if "top_change_bonus" not in cols:
-            conn.execute("ALTER TABLE customers ADD COLUMN top_change_bonus INTEGER DEFAULT 0")
-        # users テーブルが無ければ作成
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'staff',
-                store TEXT DEFAULT '',
-                email TEXT DEFAULT '',
-                created_at TEXT DEFAULT (datetime('now'))
-            )
-        """)
-        # users テーブルに email カラムが無ければ追加
-        user_cols = [row[1] for row in conn.execute("PRAGMA table_info(users)")]
-        if "email" not in user_cols:
-            conn.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
-        # 招待トークンテーブル
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS invitations (
-                token TEXT PRIMARY KEY,
-                role  TEXT NOT NULL DEFAULT 'staff',
-                store TEXT DEFAULT '',
-                created_at TEXT DEFAULT (datetime('now')),
-                expires_at TEXT DEFAULT (datetime('now','+7 days')),
-                used INTEGER DEFAULT 0
-            )
-        """)
+    """DBスキーマの自動マイグレーション（起動時に必ず実行）"""
+    try:
+        with get_conn() as conn:
+            # ── ベーステーブルを全て初期化（IF NOT EXISTS なので既存DBに影響なし）──
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS customers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    aliases TEXT DEFAULT '',
+                    primary_store TEXT DEFAULT '',
+                    rank TEXT DEFAULT 'A',
+                    first_visit_date TEXT,
+                    last_visit_date TEXT,
+                    total_visits INTEGER DEFAULT 0,
+                    is_member INTEGER DEFAULT 0,
+                    notes TEXT DEFAULT '',
+                    cross_store_flag INTEGER DEFAULT 0,
+                    merged_into INTEGER DEFAULT NULL,
+                    top_change_bonus INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS visits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer_id INTEGER,
+                    store TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    service_type TEXT DEFAULT 'normal',
+                    memo TEXT DEFAULT '',
+                    source_file TEXT DEFAULT '',
+                    FOREIGN KEY (customer_id) REFERENCES customers(id)
+                );
+                CREATE TABLE IF NOT EXISTS daily_summary (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    store TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    new_count INTEGER DEFAULT 0,
+                    repeat_unnamed_count INTEGER DEFAULT 0,
+                    repeat_named_count INTEGER DEFAULT 0,
+                    cafe_count INTEGER DEFAULT 0,
+                    source_file TEXT DEFAULT '',
+                    UNIQUE(store, date)
+                );
+                CREATE TABLE IF NOT EXISTS merge_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    merged_customer_id INTEGER,
+                    into_customer_id INTEGER,
+                    merged_by TEXT,
+                    merged_at TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'staff',
+                    store TEXT DEFAULT '',
+                    email TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS invitations (
+                    token TEXT PRIMARY KEY,
+                    role  TEXT NOT NULL DEFAULT 'staff',
+                    store TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    expires_at TEXT DEFAULT (datetime('now','+7 days')),
+                    used INTEGER DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS session_tokens (
+                    token TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    expires_at TEXT DEFAULT (datetime('now','+30 days'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_visits_customer ON visits(customer_id);
+                CREATE INDEX IF NOT EXISTS idx_visits_store_date ON visits(store, date);
+                CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
+                CREATE INDEX IF NOT EXISTS idx_customers_store ON customers(primary_store);
+            """)
+
+            # ── 既存テーブルへのカラム追加（ALTER TABLE は IF NOT EXISTS が使えないため個別チェック）──
+            cust_cols = [row[1] for row in conn.execute("PRAGMA table_info(customers)")]
+            if "top_change_bonus" not in cust_cols:
+                conn.execute("ALTER TABLE customers ADD COLUMN top_change_bonus INTEGER DEFAULT 0")
+
+            user_cols = [row[1] for row in conn.execute("PRAGMA table_info(users)")]
+            if "email" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
+
+    except Exception as e:
+        # マイグレーション失敗でもアプリ全体を落とさない
+        import sys
+        print(f"[migrate_db] warning: {e}", file=sys.stderr)
 
 def get_customers(store=None, period=None, rank=None, search=None,
                   order_by="total_visits", limit=200):
@@ -333,15 +391,6 @@ def create_session_token(user_id: int) -> str:
     import secrets
     token = secrets.token_urlsafe(32)
     with get_conn() as conn:
-        # session_tokens テーブルが無ければ作成
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS session_tokens (
-                token TEXT PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                created_at TEXT DEFAULT (datetime('now')),
-                expires_at TEXT DEFAULT (datetime('now','+30 days'))
-            )
-        """)
         # 古いトークン削除（30日以上）
         conn.execute("DELETE FROM session_tokens WHERE expires_at < datetime('now')")
         conn.execute(

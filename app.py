@@ -22,7 +22,10 @@ st.set_page_config(
 )
 
 # DBスキーマの自動マイグレーション（起動時に必ず実行）
-db.migrate_db()
+try:
+    db.migrate_db()
+except Exception as _mig_err:
+    st.warning(f"DB初期化の一部でエラーが発生しました: {_mig_err}")
 
 # ─────────────────────────────────────────
 # MOSHブランドCSS（スマホ対応）
