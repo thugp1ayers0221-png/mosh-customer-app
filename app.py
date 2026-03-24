@@ -21,6 +21,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# DBスキーマの自動マイグレーション（起動時に必ず実行）
+db.migrate_db()
+
 # ─────────────────────────────────────────
 # MOSHブランドCSS（スマホ対応）
 # ─────────────────────────────────────────
@@ -310,7 +313,7 @@ footer                                  { display: none !important; }
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────
-# セッション初期化
+# セッション初期化 + ログイン記憶チェック
 # ─────────────────────────────────────────
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -318,6 +321,18 @@ if "page" not in st.session_state:
     st.session_state.page = "home"
 if "selected_customer" not in st.session_state:
     st.session_state.selected_customer = None
+if "login_token" not in st.session_state:
+    st.session_state.login_token = None
+
+# URLトークンからの自動ログイン
+if st.session_state.user is None:
+    params = st.query_params
+    saved_token = params.get("t", None)
+    if saved_token:
+        auto_user = db.verify_session_token(saved_token)
+        if auto_user:
+            st.session_state.user = auto_user
+            st.session_state.login_token = saved_token
 
 RANK_LABEL = {"V": "💎 VIP", "S": "🏆 S", "A": "⭐ A", "B": "🔵 B", "C": "🆕 C"}
 RANK_DESC  = {
@@ -354,10 +369,15 @@ def show_login():
             st.markdown("#### ログイン")
             username = st.text_input("ユーザー名", placeholder="ユーザー名を入力")
             password = st.text_input("パスワード", type="password", placeholder="パスワードを入力")
+            remember = st.checkbox("ログイン状態を保持する（30日間）", value=True)
             if st.button("ログイン", use_container_width=True, type="primary"):
                 user = db.verify_user(username, password)
                 if user:
                     st.session_state.user = user
+                    if remember:
+                        token = db.create_session_token(user["id"])
+                        st.session_state.login_token = token
+                        st.query_params["t"] = token
                     st.rerun()
                 else:
                     st.error("ユーザー名またはパスワードが違います")

@@ -15,6 +15,31 @@ def get_conn():
     finally:
         conn.close()
 
+def migrate_db():
+    """DBスキーマの自動マイグレーション（カラム追加など）"""
+    with get_conn() as conn:
+        # customers テーブルの既存カラムを確認
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(customers)")]
+        # top_change_bonus カラムが無ければ追加
+        if "top_change_bonus" not in cols:
+            conn.execute("ALTER TABLE customers ADD COLUMN top_change_bonus INTEGER DEFAULT 0")
+        # users テーブルが無ければ作成
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'staff',
+                store TEXT DEFAULT '',
+                email TEXT DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        # users テーブルに email カラムが無ければ追加
+        user_cols = [row[1] for row in conn.execute("PRAGMA table_info(users)")]
+        if "email" not in user_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
+
 def get_customers(store=None, period=None, rank=None, search=None,
                   order_by="total_visits", limit=200):
     """顧客一覧を取得（フィルタ・ソート・前月比トレンド対応）"""
@@ -288,3 +313,51 @@ def verify_user(username, password):
         if row['password_hash'] == pw_hash:
             return dict(row)
         return None
+
+# ─────────────────────────────────────────
+# セッショントークン（ログイン記憶）
+# ─────────────────────────────────────────
+def create_session_token(user_id: int) -> str:
+    """ログイン記憶用トークンを発行・DBに保存"""
+    import secrets
+    token = secrets.token_urlsafe(32)
+    with get_conn() as conn:
+        # session_tokens テーブルが無ければ作成
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS session_tokens (
+                token TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                expires_at TEXT DEFAULT (datetime('now','+30 days'))
+            )
+        """)
+        # 古いトークン削除（30日以上）
+        conn.execute("DELETE FROM session_tokens WHERE expires_at < datetime('now')")
+        conn.execute(
+            "INSERT OR REPLACE INTO session_tokens (token, user_id) VALUES (?,?)",
+            (token, user_id)
+        )
+    return token
+
+def verify_session_token(token: str):
+    """トークンからユーザー情報を返す（期限切れ・無効なら None）"""
+    if not token:
+        return None
+    with get_conn() as conn:
+        try:
+            row = conn.execute("""
+                SELECT u.* FROM users u
+                JOIN session_tokens st ON u.id = st.user_id
+                WHERE st.token=? AND st.expires_at > datetime('now')
+            """, (token,)).fetchone()
+            return dict(row) if row else None
+        except Exception:
+            return None
+
+def delete_session_token(token: str):
+    """ログアウト時にトークン削除"""
+    with get_conn() as conn:
+        try:
+            conn.execute("DELETE FROM session_tokens WHERE token=?", (token,))
+        except Exception:
+            pass
