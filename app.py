@@ -1178,11 +1178,11 @@ def _cached_line_samples(store: str) -> str:
 
 def generate_open_text(flavor: str, style_store: str) -> str:
     if not HAS_ANTHROPIC:
-        return f"オープンしました！本日のおすすめは{flavor}です！皆様のご来店心よりお待ちしております♪"
+        return "⚠️ AI機能が無効です（ANTHROPIC_API_KEY未設定）"
     samples = _cached_line_samples(style_store)
     try:
         msg = _anthropic_client.messages.create(
-            model="claude-haiku-20240307",
+            model="claude-3-haiku-20240307",
             max_tokens=350,
             system=f"""あなたはシーシャバー「MOSH {style_store}」のスタッフです。
 毎日LINEオープンチャットにオープン告知を投稿します。
@@ -1199,8 +1199,8 @@ def generate_open_text(flavor: str, style_store: str) -> str:
             messages=[{"role": "user", "content": f"今日のおすすめフレーバー：{flavor}"}]
         )
         return msg.content[0].text.strip()
-    except Exception:
-        return f"オープンしました！本日のおすすめは{flavor}です！皆様のご来店心よりお待ちしております♪"
+    except Exception as e:
+        return f"⚠️ 生成エラー: {e}"
 
 def generate_discord_report(store: str, date_str: str, flavor: str,
                              new_count: int, repeat_count: int,
