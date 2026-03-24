@@ -92,6 +92,10 @@ st.markdown("""
 [data-testid="stAppViewBlockContainer"] { padding-top: 0 !important; }
 [data-testid="stMainBlockContainer"] { padding-top: 0 !important; }
 .block-container { padding-top: 0.5rem !important; }
+section.main > div:first-child { padding-top: 0 !important; }
+section[data-testid="stSidebar"] + section { padding-top: 0 !important; }
+.stMainPadding { padding-top: 0 !important; }
+div[class*="appview-container"] { padding-top: 0 !important; }
 
 /* 全体背景 */
 .stApp {
@@ -1189,6 +1193,15 @@ def generate_open_text(flavor: str, style_store: str) -> str:
     if not HAS_ANTHROPIC:
         return "⚠️ AI機能が無効です（ANTHROPIC_API_KEY未設定）"
     samples = _cached_line_samples(style_store)
+    import random as _random
+    variation_hints = [
+        "出だしは天気・季節の話題から入る",
+        "出だしはオープンの一言からシンプルに始める",
+        "出だしは今日の気分・気持ちを表す言葉から",
+        "出だしはフレーバー名を最初に出す",
+        "出だしはお客さんへの呼びかけから始める",
+    ]
+    hint = _random.choice(variation_hints)
     try:
         msg = _anthropic_client.messages.create(
             model="claude-3-haiku-20240307",
@@ -1196,15 +1209,15 @@ def generate_open_text(flavor: str, style_store: str) -> str:
             system=f"""あなたはシーシャバー「MOSH {style_store}」のスタッフです。
 毎日LINEオープンチャットにオープン告知を投稿します。
 
-【{style_store}の過去の投稿サンプル（この文体・トーン・絵文字の使い方を必ず継承）】
+【{style_store}の過去の投稿サンプル（この文体・トーン・絵文字を継承）】
 {samples}
 
 【必須ルール】
-- 上記サンプルの文体・出だし・絵文字パターンをそのまま継承する
-- 構成：①オープンの一言 ②フレーバー名 ③味わい・香り・イメージを2〜3文で具体的に描写（核心！） ④来店を促す一言
-- ③は必ず入れる。「ひと口吸うと〜」「〜な香りがふわっと」「〜をイメージした」などの表現で
+- サンプルの文体・絵文字パターンを継承する
+- 構成：①オープンの一言 ②フレーバー名 ③味わい・香り・イメージを2〜3文で描写 ④来店を促す一言
+- ③「ひと口吸うと〜」「〜な香りが」「〜をイメージした」などで具体的に
 - 150〜200文字程度
-- 毎回出だし・語尾・絵文字を少し変えて新鮮に""",
+- 今回のバリエーション指示：{hint}""",
             messages=[{"role": "user", "content": f"今日のおすすめフレーバー：{flavor}"}]
         )
         return msg.content[0].text.strip()
