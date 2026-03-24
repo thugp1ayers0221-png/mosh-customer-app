@@ -1204,7 +1204,7 @@ def generate_open_text(flavor: str, style_store: str) -> str:
     hint = _random.choice(variation_hints)
     try:
         msg = _anthropic_client.messages.create(
-            model="claude-3-haiku-20240307",
+            model="claude-haiku-4-5",
             max_tokens=350,
             system=f"""あなたはシーシャバー「MOSH {style_store}」のスタッフです。
 毎日LINEオープンチャットにオープン告知を投稿します。
@@ -1267,7 +1267,7 @@ def generate_discord_report(store: str, date_str: str, flavor: str,
     return "\n".join(lines)
 
 def generate_flavor_image(flavor: str):
-    if not HAS_OPENAI or not HAS_PIL:
+    if not HAS_OPENAI:
         return None
     try:
         prompt = (
@@ -1282,23 +1282,7 @@ def generate_flavor_image(flavor: str):
         )
         import requests as _requests
         img_url = response.data[0].url
-        img_data = _requests.get(img_url).content
-        img = Image.open(io.BytesIO(img_data)).convert("RGBA")
-        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
-        W, H = img.size
-        draw.rectangle([(0, H-120), (W, H)], fill=(0, 0, 0, 160))
-        try:
-            font_big   = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 64)
-            font_small = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 28)
-        except Exception:
-            font_big = font_small = ImageFont.load_default()
-        draw.text((W//2, H-80), "MOSH", font=font_big,   fill=(255,255,255,240), anchor="mm")
-        draw.text((W//2, H-30), "shisha & sweets", font=font_small, fill=(200,200,200,200), anchor="mm")
-        img = Image.alpha_composite(img, overlay)
-        buf = io.BytesIO()
-        img.convert("RGB").save(buf, format="JPEG", quality=85)
-        return buf.getvalue()
+        return _requests.get(img_url).content
     except Exception as e:
         st.error(f"画像生成エラー: {e}")
         return None

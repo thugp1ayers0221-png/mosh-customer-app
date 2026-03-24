@@ -368,7 +368,7 @@ def import_all_reports():
             continue
 
         files = sorted(store_path.rglob("20[0-9][0-9]-[0-9][0-9]-[0-9][0-9].md"))
-        print(f"📁 {store}: {len(files)}件処理中...")
+        print(f"📁 {store}: {len(files)}件処理中...", flush=True)
 
         for i, f in enumerate(files):
             # ファイルごとに独立したコネクションを使う（デッドロック防止）
@@ -381,17 +381,17 @@ def import_all_reports():
                     if attempt < 2 and "deadlock" in str(e).lower():
                         import time; time.sleep(0.5)
                         continue
-                    print(f"  ⚠️ {f.name}: {e}")
+                    print(f"  ⚠️ {f.name}: {e}", flush=True)
                     break
 
-            if (i + 1) % 100 == 0:
-                print(f"  {i+1}/{len(files)}...")
+            if (i + 1) % 10 == 0:
+                print(f"  {i+1}/{len(files)}: {f.name}", flush=True)
 
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) as cnt FROM visits WHERE store=%s", (store,))
                 count = cur.fetchone()['cnt']
-        print(f"  ✅ {store}: 来店ログ {count}件")
+        print(f"  ✅ {store}: 来店ログ {count}件", flush=True)
         total += len(files)
 
     with get_conn() as conn:
