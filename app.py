@@ -368,7 +368,7 @@ st.components.v1.html("""
 </script>
 """, height=0)
 
-RANK_LABEL = {"V": "💎 VIP", "S": "🏆 S", "A": "⭐ A", "B": "🔵 B", "C": "🆕 C"}
+RANK_LABEL = {"V": "VIP", "S": "S", "A": "A", "B": "B", "C": "C"}
 RANK_DESC  = {
     "V": "VIP会員（Masons専用）",
     "S": "ロイヤル（10回以上）",
@@ -495,10 +495,10 @@ def show_home():
                         db.set_rank(c["id"], "S", user["username"])
                         st.rerun()
 
-    # 件数表示
+    # 件数表示 + ランク凡例
     period_str = f"{sel_period}" if sel_period != "全期間" else "全期間"
     store_str  = sel_store
-    st.caption(f"{store_str} · {period_str} · {len(customers)}名")
+    st.caption(f"{store_str} · {period_str} · {len(customers)}名　｜　ランク: [VIP]=Masons会員 [S]=10回以上 [A]=顔なじみ [B]=名前不明 [C]=新規")
 
     # 一覧（カード全体をボタンに・トレンド表示付き）
     for c in customers:
@@ -506,7 +506,7 @@ def show_home():
         last_date = c["last_visit_date"] or "-"
 
         rank = c.get("rank","A")
-        rank_emoji = {"V":"💎","S":"🏆","A":"⭐","B":"🔵","C":"🆕"}.get(rank, rank)
+        rank_badge = {"V":"[VIP]","S":"[S]","A":"[A]","B":"[B]","C":"[C]"}.get(rank, f"[{rank}]")
         member_mark = " ✅" if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
         cross_mark  = " ⚠️" if c["cross_store_flag"] else ""
         store_label = c['primary_store'] or '未設定'
@@ -524,7 +524,7 @@ def show_home():
             trend = ""
 
         btn_label = (
-            f"{rank_emoji} **{c['name']}**{member_mark}{cross_mark}　{trend}\n"
+            f"{rank_badge} **{c['name']}**{member_mark}{cross_mark}　{trend}\n"
             f"{store_label}　最終: {last_date}　来店 **{visits_n}回**"
         )
         if st.button(btn_label, key=f"open_{c['id']}", use_container_width=True):
@@ -797,10 +797,10 @@ def show_dashboard():
     # メトリクス
     col1, col2, col3, col4 = st.columns(4)
     metrics = [
-        (s.get("new_total",0),      "🆕 新規（C）"),
-        (s.get("repeat_b",0),       "🔵 リピーター（B）"),
-        (s.get("repeat_a",0),       "⭐ 顔なじみ（A）"),
-        (r.get("S",0),              "🏆 ロイヤル（S）"),
+        (s.get("new_total",0),      "新規（C）"),
+        (s.get("repeat_b",0),       "リピーター（B）"),
+        (s.get("repeat_a",0),       "顔なじみ（A）"),
+        (r.get("S",0),              "ロイヤル（S）"),
     ]
     for col, (val, label) in zip([col1,col2,col3,col4], metrics):
         with col:
