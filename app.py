@@ -396,17 +396,20 @@ st.markdown("""
   font-family: 'Noto Sans JP', sans-serif !important;
   font-weight: 500 !important;
 }
-/* 顧客カードボタン */
-.stButton > button[kind="secondary"] {
+/* 顧客カードボタン（Streamlit実際のdata-testid） */
+[data-testid="baseButton-secondary"] {
   text-align: left !important;
   white-space: pre-line !important;
   background: white !important;
   color: #2D1F0F !important;
-  border: 1px solid #e8e0d5 !important;
-  min-height: 60px !important;
-  line-height: 1.6 !important;
-  font-size: 0.92rem !important;
-  padding: 10px 14px !important;
+  border: 1px solid #e0d8d0 !important;
+  min-height: 64px !important;
+  line-height: 1.7 !important;
+  font-size: 0.93rem !important;
+  padding: 10px 16px !important;
+  justify-content: flex-start !important;
+  display: flex !important;
+  align-items: center !important;
 }
 .stSelectbox > div > div,
 .stTextInput > div > div > input {
@@ -741,15 +744,15 @@ def show_home():
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
     # ── 顧客カード一覧 ──
-    RANK_DOT = {"V":"🟣","S":"🟡","A":"🟤","B":"🔵","C":"⚫"}
+    RANK_LABEL = {"V":"[V]","S":"[S]","A":"[A]","B":"[B]","C":"[C]"}
 
     for c in customers:
         rank      = c.get("rank","A")
-        dot       = RANK_DOT.get(rank, "⚫")
+        rank_tag  = RANK_LABEL.get(rank, "[A]")
         name      = c['name']
         store_lbl = c['primary_store'] or '未設定'
-        member_mark = "✅" if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
-        cross_mark  = "⚠️" if c["cross_store_flag"] else ""
+        member_mark = " ✅" if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
+        cross_mark  = " ⚠️" if c["cross_store_flag"] else ""
 
         this_m = c.get("visits_this_month") or 0
         last_m = c.get("visits_last_month") or 0
@@ -761,12 +764,14 @@ def show_home():
             days_label = "-"
             days_ago = 999
 
-        if this_m > last_m > 0:    trend = f" ↑+{this_m-last_m}"
-        elif this_m < last_m > 0:  trend = f" ↓{this_m-last_m}"
-        elif this_m > 0 == last_m: trend = " ✨新"
+        if this_m > last_m > 0:    trend = f"  ↑+{this_m-last_m}"
+        elif this_m < last_m > 0:  trend = f"  ↓{this_m-last_m}"
+        elif this_m > 0 == last_m: trend = "  NEW"
         else:                       trend = ""
 
-        label = f"{dot} {member_mark}{name}{cross_mark}{trend}\n   {store_lbl}  今月{this_m}回 · {days_label}"
+        line1 = f"{rank_tag} {name}{member_mark}{cross_mark}{trend}"
+        line2 = f"    {store_lbl}  今月{this_m}回  最終:{days_label}"
+        label = f"{line1}\n{line2}"
 
         if st.button(label, key=f"open_{c['id']}", use_container_width=True):
             st.session_state.selected_customer = c["id"]
