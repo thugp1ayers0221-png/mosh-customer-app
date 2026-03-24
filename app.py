@@ -11,7 +11,15 @@ import random
 import string
 import io
 import base64
+import os
 import mosh_db as db
+
+# MOSHロゴをbase64エンコード
+_logo_b64 = ""
+_logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "mosh_logo.jpg")
+if os.path.exists(_logo_path):
+    with open(_logo_path, "rb") as _f:
+        _logo_b64 = base64.b64encode(_f.read()).decode()
 
 # ─── AI機能（オプション：APIキーがない場合はスキップ）───
 try:
@@ -407,6 +415,14 @@ footer                                  { display: none !important; }
 .main .block-container { opacity: 1 !important; }
 div[class*="withScreencast"] { opacity: 1 !important; }
 iframe[title="streamlit_component"] { opacity: 1 !important; }
+div[data-stale="true"] { opacity: 1 !important; filter: none !important; }
+[class*="stale"] { opacity: 1 !important; }
+div[aria-live] > div { opacity: 1 !important; }
+.stApp > div { opacity: 1 !important; }
+/* Streamlitの白いもや（実行中オーバーレイ）を完全に非表示 */
+div[data-testid="stAppRunningIcon"] { display: none !important; }
+.st-emotion-cache-uf99v8 { background: none !important; }
+[class*="AppRunning"] { display: none !important; }
 
 /* ─── MOSHローディングアニメーション ─── */
 @keyframes mosh-wobble {
@@ -417,13 +433,8 @@ iframe[title="streamlit_component"] { opacity: 1 !important; }
   100% { transform: rotate(-8deg) scale(1);   }
 }
 @keyframes mosh-float {
-  0%,100% { transform: translateY(0px);   }
-  50%      { transform: translateY(-8px);  }
-}
-@keyframes mosh-spin-pop {
-  0%   { transform: rotate(0deg)   scale(1);   }
-  40%  { transform: rotate(180deg) scale(1.2); }
-  100% { transform: rotate(360deg) scale(1);   }
+  0%,100% { transform: translateY(0);  }
+  50%      { transform: translateY(-8px); }
 }
 [data-testid="stSpinner"] {
   display: flex !important;
@@ -432,20 +443,45 @@ iframe[title="streamlit_component"] { opacity: 1 !important; }
   justify-content: center !important;
   padding: 24px !important;
 }
-[data-testid="stSpinner"] > div::before {
-  content: "🫧";
-  font-size: 3rem;
-  display: block;
-  text-align: center;
-  animation: mosh-wobble 0.7s ease-in-out infinite, mosh-float 1.5s ease-in-out infinite;
-  margin-bottom: 8px;
-}
 [data-testid="stSpinner"] svg { display: none !important; }
 [data-testid="stSpinner"] > div > p {
   font-family: 'Noto Sans JP', sans-serif !important;
   font-size: 0.85rem !important;
   color: var(--mosh-brown) !important;
   margin-top: 8px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# MOSHキャラクターをローディングスピナーに注入
+if _logo_b64:
+    st.markdown(f"""
+<style>
+[data-testid="stSpinner"] > div::before {{
+  content: "";
+  display: block;
+  width: 130px;
+  height: 130px;
+  background-image: url("data:image/jpeg;base64,{_logo_b64}");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius: 16px;
+  animation: mosh-wobble 0.6s ease-in-out infinite, mosh-float 1.4s ease-in-out infinite;
+  margin: 0 auto 8px;
+}}
+</style>
+""", unsafe_allow_html=True)
+else:
+    st.markdown("""
+<style>
+[data-testid="stSpinner"] > div::before {
+  content: "🫧";
+  font-size: 3rem;
+  display: block;
+  text-align: center;
+  animation: mosh-wobble 0.6s ease-in-out infinite, mosh-float 1.4s ease-in-out infinite;
+  margin-bottom: 8px;
 }
 </style>
 """, unsafe_allow_html=True)
