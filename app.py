@@ -400,20 +400,27 @@ div[class*="appview-container"] { padding-top: 0 !important; }
   font-family: 'Noto Sans JP', sans-serif !important;
   font-weight: 500 !important;
 }
-/* 顧客カードボタン（Streamlit実際のdata-testid） */
+/* 顧客カードボタン */
 [data-testid="baseButton-secondary"] {
-  text-align: left !important;
+  width: 100% !important;
+  background-color: #F5EFE0 !important;
+  color: #6B4226 !important;
+  border: 2px solid #A8D8EA !important;
+  border-radius: 16px !important;
+  padding: 14px 16px !important;
+  text-align: center !important;
   white-space: pre-line !important;
-  background: white !important;
-  color: #2D1F0F !important;
-  border: 1px solid #e0d8d0 !important;
-  min-height: 64px !important;
-  line-height: 1.7 !important;
-  font-size: 0.93rem !important;
-  padding: 10px 16px !important;
-  justify-content: flex-start !important;
-  display: flex !important;
-  align-items: center !important;
+  font-size: 14px !important;
+  line-height: 1.8 !important;
+  min-height: 80px !important;
+  box-shadow: 0 2px 6px rgba(107,66,38,0.12) !important;
+  margin-bottom: 2px !important;
+  transition: background-color 0.15s ease !important;
+}
+[data-testid="baseButton-secondary"]:hover,
+[data-testid="baseButton-secondary"]:active {
+  background-color: #A8D8EA !important;
+  border-color: #6B4226 !important;
 }
 .stSelectbox > div > div,
 .stTextInput > div > div > input {
@@ -748,11 +755,15 @@ def show_home():
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
     # ── 顧客カード一覧 ──
+    RANK_SYM = {"V":"◆ V ランク","S":"◆ S ランク","A":"◇ A ランク","B":"○ B ランク","C":"△ C ランク"}
+
     for c in customers:
         name      = c['name']
         store_lbl = c['primary_store'] or '未設定'
         this_m    = c.get("visits_this_month") or 0
-        label     = f"{store_lbl}　{name}　今月{this_m}回"
+        rank      = c.get("rank","A")
+        rank_line = RANK_SYM.get(rank, f"◇ {rank} ランク")
+        label     = f"{rank_line}\n{name}\n今月 {this_m} 回  ·  {store_lbl}"
 
         if st.button(label, key=f"open_{c['id']}", use_container_width=True):
             with st.spinner("読み込み中..."):
