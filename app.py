@@ -422,15 +422,13 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 [data-testid="baseButton-secondary"]:hover {
   filter: brightness(0.94) !important;
 }
-/* ランク別カラー（直前の .rank-x divで制御） S/A/Bのみ */
-.rank-s ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+/* ランク別カラー S/Aのみ */
+.rank-s ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"],
+.rank-v ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
   background-color: #FFF3CD !important; border: 2px solid #C8922A !important; color: #6B4226 !important;
 }
 .rank-a ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
   background-color: #D6EEF8 !important; border: 2px solid #A8D8EA !important; color: #1A5F80 !important;
-}
-.rank-b ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
-  background-color: #F5EFE0 !important; border: 2px solid #c8b89a !important; color: #6B4226 !important;
 }
 .stSelectbox > div > div,
 .stTextInput > div > div > input {
@@ -627,15 +625,13 @@ def clear_auth_cookie():
 })();
 </script>""", height=0)
 
-RANK_LABEL = {"V": "VIP", "S": "S", "A": "A", "B": "B", "C": "C"}
+RANK_LABEL = {"V": "VIP", "S": "S", "A": "A"}
 RANK_DESC  = {
-    "V": "VIP会員（Masons専用）",
-    "S": "ロイヤル（10回以上）",
-    "A": "顔なじみリピーター",
-    "B": "名前不明リピーター",
-    "C": "新規",
+    "V": "VIP（Masons専用）",
+    "S": "超常連VIP",
+    "A": "名前ありリピーター",
 }
-RANK_ORDER = {"V": 0, "S": 1, "A": 2, "B": 3, "C": 4}
+RANK_ORDER = {"V": 0, "S": 1, "A": 2}
 SERVICE_LABEL = {
     "normal":     "通常",
     "top_change": "🔄 トップ替え",
@@ -952,14 +948,14 @@ def show_detail():
             current_rank = c.get("rank","A")
 
             # Masonsのみ VIP選択肢を追加
-            rank_options = ["V","S","A","B","C"] if c["primary_store"] == "メイソンズ" else ["S","A","B","C"]
-            rank_idx = rank_options.index(current_rank) if current_rank in rank_options else 1
+            rank_options = ["V","S","A"] if c["primary_store"] == "メイソンズ" else ["S","A"]
+            rank_idx = rank_options.index(current_rank) if current_rank in rank_options else (1 if len(rank_options)>1 else 0)
             new_rank = st.radio(
                 "ランク",
                 rank_options,
                 index=rank_idx,
                 horizontal=True,
-                help="V=VIP(Masons専用) / S=ロイヤル(10回以上) / A=顔なじみ / B=名前不明 / C=新規",
+                help="S=超常連VIP / A=名前ありリピーター / V=VIP(Masons専用)",
             )
             if new_rank != current_rank:
                 if st.button(f"{current_rank} → {new_rank} に変更", type="primary"):
@@ -1050,10 +1046,10 @@ def show_dashboard():
     # メトリクス
     col1, col2, col3, col4 = st.columns(4)
     metrics = [
-        (s.get("new_total",0),      "新規（C）"),
-        (s.get("repeat_b",0),       "リピーター（B）"),
-        (s.get("repeat_a",0),       "顔なじみ（A）"),
-        (r.get("S",0),              "ロイヤル（S）"),
+        (s.get("new_total",0),                       "新規"),
+        (s.get("repeat_b",0),                        "リピーター"),
+        (r.get("A",0) + s.get("repeat_a",0),         "A（名前あり）"),
+        (r.get("S",0) + r.get("V",0),                "S（超常連）"),
     ]
     for col, (val, label) in zip([col1,col2,col3,col4], metrics):
         with col:
@@ -1068,10 +1064,10 @@ def show_dashboard():
 
     # ランク分布パイチャート
     rank_data = {
-        "S（ロイヤル）":   r.get("S",0),
-        "A（顔なじみ）":   r.get("A",0),
-        "B（名前不明）":   r.get("B",0) + s.get("repeat_b",0),
-        "C（新規）":       s.get("new_total",0),
+        "S（超常連）":       r.get("S",0) + r.get("V",0),
+        "A（名前ありリピーター）": r.get("A",0),
+        "リピーター":        s.get("repeat_b",0),
+        "新規":             s.get("new_total",0),
     }
     rank_data = {k:v for k,v in rank_data.items() if v > 0}
 
