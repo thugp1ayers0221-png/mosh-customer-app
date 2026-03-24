@@ -21,11 +21,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# DBスキーマの自動マイグレーション（起動時に必ず実行）
+# DBスキーマの自動マイグレーション（起動時に必ず実行・エラーは無視）
 try:
     db.migrate_db()
-except Exception as _mig_err:
-    st.warning(f"DB初期化の一部でエラーが発生しました: {_mig_err}")
+except Exception:
+    pass
 
 # ─────────────────────────────────────────
 # MOSHブランドCSS（スマホ対応）
@@ -167,14 +167,29 @@ st.markdown("""
 }
 .card-days-ago.recent { color: #16A34A; font-weight: 600; }
 
-/* カードの上に重なるボタンを透明化・負のmarginでカードに被せる */
-.customer-card + div > button {
-  opacity: 0 !important;
-  margin-top: -62px !important;
-  height: 62px !important;
-  position: relative;
-  z-index: 1;
-  cursor: pointer !important;
+/* カードリスト：2列構成（ランクバー＋ボタン）*/
+.card-list > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {
+  gap: 3px !important;
+  margin-bottom: 5px !important;
+  align-items: stretch !important;
+}
+.card-list .stButton button {
+  text-align: left !important;
+  background: white !important;
+  border: 1px solid #eee !important;
+  border-radius: 0 12px 12px 0 !important;
+  padding: 10px 14px !important;
+  box-shadow: 0 1px 4px rgba(106,66,38,0.07) !important;
+  height: auto !important;
+  min-height: 64px !important;
+  white-space: pre-line !important;
+  color: var(--mosh-dark) !important;
+  font-size: 0.9rem !important;
+  line-height: 1.6 !important;
+}
+.card-list .stButton button:hover {
+  background: #fafafa !important;
+  box-shadow: 0 2px 8px rgba(106,66,38,0.12) !important;
 }
 
 /* ランクバッジ */
@@ -573,9 +588,17 @@ def show_home():
     customers = db.get_customers(store=store_q, period=period_q, search=search_q)
 
     # S候補の通知
-    s_candidates = [c for c in customers if c["total_visits"] >= 10 and c["rank"] == "A"]
+    all_customers_for_s = db.get_customers(limit=9999)
+    s_candidates = [c for c in all_customers_for_s if c["total_visits"] >= 10 and c["rank"] == "A"]
     if s_candidates and user["role"] in ("owner","manager","executive"):
         with st.expander(f"⚠️ Sランク候補 {len(s_candidates)}名（来店10回以上・未昇格）"):
+            # 一括昇格ボタン
+            if user["role"] in ("owner","executive"):
+                if st.button(f"🚀 {len(s_candidates)}名を全員Sに一括昇格", type="primary", use_container_width=True):
+                    for c in s_candidates:
+                        db.set_rank(c["id"], "S", user["username"])
+                    st.success(f"{len(s_candidates)}名をSランクに昇格しました")
+                    st.rerun()
             for c in s_candidates[:5]:
                 col1, col2 = st.columns([4,1])
                 with col1:
@@ -588,71 +611,56 @@ def show_home():
     # 件数表示
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
-    # ── 顧客カード一覧 ──
+    # ── 顧客カード一覧（ランクバー＋ボタン2列構成）──
     RANK_COLORS = {"V":"#A855F7","S":"#C9A84C","A":"#7B5230","B":"#5B7FA6","C":"#9E9E9E"}
 
+    st.markdown('<div class="card-list">', unsafe_allow_html=True)
     for c in customers:
-        rank       = c.get("rank","A")
-        bar_color  = RANK_COLORS.get(rank, "#9E9E9E")
-        name       = c['name']
-        store_lbl  = c['primary_store'] or '未設定'
-        member_mark = "✅ " if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
-        cross_mark  = " ⚠️" if c["cross_store_flag"] else ""
+        rank      = c.get("rank","A")
+        bar_color = RANK_COLORS.get(rank, "#9E9E9E")
+        name      = c['name']
+        store_lbl = c['primary_store'] or '未設定'
+        member_mark = "✅" if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
+        cross_mark  = "⚠️" if c["cross_store_flag"] else ""
 
-        # 今月来店回数
         this_m = c.get("visits_this_month") or 0
         last_m = c.get("visits_last_month") or 0
-        this_month_label = f"今月 {this_m}回" if this_m > 0 else "今月 0回"
 
-        # 最終来店からの日数
-        last_date = c["last_visit_date"] or ""
+        # 最終来店日数
         try:
-            days_ago = (today - _date.fromisoformat(last_date)).days
-            if days_ago == 0:   days_label = "今日"
-            elif days_ago == 1: days_label = "昨日"
-            elif days_ago <= 7: days_label = f"{days_ago}日前"
-            else:               days_label = f"{days_ago}日前"
-            recent_cls = "recent" if days_ago <= 7 else ""
+            days_ago = (today - _date.fromisoformat(c["last_visit_date"] or "")).days
+            days_label = "今日" if days_ago==0 else ("昨日" if days_ago==1 else f"{days_ago}日前")
         except:
             days_label = "-"
-            recent_cls = ""
+            days_ago = 999
 
-        # 前月比トレンド
-        if this_m > last_m and last_m > 0:
-            trend_html = f'<span class="card-trend-up">↑+{this_m-last_m}</span>'
-        elif this_m < last_m and this_m > 0:
-            trend_html = f'<span class="card-trend-down">↓{this_m-last_m}</span>'
-        elif this_m > 0 and last_m == 0:
-            trend_html = '<span class="card-trend-new">✨新</span>'
-        else:
-            trend_html = ''
+        # トレンド
+        if this_m > last_m > 0:     trend = f"↑+{this_m-last_m}"
+        elif this_m < last_m > 0:   trend = f"↓{this_m-last_m}"
+        elif this_m > 0 == last_m:  trend = "✨新"
+        else:                        trend = ""
 
-        st.markdown(f"""
-        <div class="customer-card">
-          <div class="card-rank-bar" style="background:{bar_color};width:6px;flex-shrink:0;"></div>
-          <div class="card-body">
-            <div class="card-row1">
-              <span class="card-name">{member_mark}{name}{cross_mark}</span>
-              {trend_html}
-            </div>
-            <div class="card-row2">
-              <span class="card-store">{store_lbl}</span>
-              <span class="card-this-month">{this_month_label}</span>
-              <span class="card-days-ago {recent_cls}">{days_label}</span>
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        days_color = "#16A34A" if days_ago <= 7 else "#bbb"
+        line1 = f"{member_mark}**{name}**{cross_mark}　{trend}"
+        line2 = f"{store_lbl}　今月 **{this_m}回**　· {days_label}"
 
-        # 透明ボタンでタップ判定
-        if st.button("　", key=f"open_{c['id']}", use_container_width=True):
-            st.session_state.selected_customer = c["id"]
-            st.session_state.page = "detail"
-            new_params = {"p": "detail", "id": str(c["id"])}
-            if st.session_state.login_token:
-                new_params["t"] = st.session_state.login_token
-            st.query_params.update(new_params)
-            st.rerun()
+        col_bar, col_btn = st.columns([1, 20])
+        with col_bar:
+            st.markdown(
+                f'<div style="background:{bar_color};border-radius:6px;'
+                f'height:64px;margin-top:4px;"></div>',
+                unsafe_allow_html=True
+            )
+        with col_btn:
+            if st.button(f"{line1}\n{line2}", key=f"open_{c['id']}", use_container_width=True):
+                st.session_state.selected_customer = c["id"]
+                st.session_state.page = "detail"
+                new_params = {"p": "detail", "id": str(c["id"])}
+                if st.session_state.login_token:
+                    new_params["t"] = st.session_state.login_token
+                st.query_params.update(new_params)
+                st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ─────────────────────────────────────────
 # 顧客詳細
