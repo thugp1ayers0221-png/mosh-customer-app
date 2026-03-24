@@ -407,6 +407,46 @@ footer                                  { display: none !important; }
 .main .block-container { opacity: 1 !important; }
 div[class*="withScreencast"] { opacity: 1 !important; }
 iframe[title="streamlit_component"] { opacity: 1 !important; }
+
+/* ─── MOSHローディングアニメーション ─── */
+@keyframes mosh-wobble {
+  0%   { transform: rotate(-8deg) scale(1);   }
+  25%  { transform: rotate( 8deg) scale(1.08);}
+  50%  { transform: rotate(-5deg) scale(1);   }
+  75%  { transform: rotate( 5deg) scale(1.05);}
+  100% { transform: rotate(-8deg) scale(1);   }
+}
+@keyframes mosh-float {
+  0%,100% { transform: translateY(0px);   }
+  50%      { transform: translateY(-8px);  }
+}
+@keyframes mosh-spin-pop {
+  0%   { transform: rotate(0deg)   scale(1);   }
+  40%  { transform: rotate(180deg) scale(1.2); }
+  100% { transform: rotate(360deg) scale(1);   }
+}
+[data-testid="stSpinner"] {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+}
+[data-testid="stSpinner"] > div::before {
+  content: "🫧";
+  font-size: 3rem;
+  display: block;
+  text-align: center;
+  animation: mosh-wobble 0.7s ease-in-out infinite, mosh-float 1.5s ease-in-out infinite;
+  margin-bottom: 8px;
+}
+[data-testid="stSpinner"] svg { display: none !important; }
+[data-testid="stSpinner"] > div > p {
+  font-family: 'Noto Sans JP', sans-serif !important;
+  font-size: 0.85rem !important;
+  color: var(--mosh-brown) !important;
+  margin-top: 8px !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1089,14 +1129,21 @@ def generate_open_text(flavor: str, store: str) -> str:
     try:
         msg = _anthropic_client.messages.create(
             model="claude-haiku-20240307",
-            max_tokens=300,
+            max_tokens=400,
             system=f"""あなたはシーシャバー「MOSH {store}」のスタッフです。
 毎日LINEオープンチャットにオープン告知を投稿します。
-以下のサンプルを参考に、カジュアルで親しみやすい文体（絵文字あり）で告知文を1つ作成してください。
-100文字程度で簡潔に。
 
-サンプル：
-{LINE_SAMPLES}""",
+【過去の投稿サンプル】
+{LINE_SAMPLES}
+
+【ルール】
+- カジュアルで親しみやすい文体、絵文字を自然に使う
+- オープンの一言 + フレーバーの紹介 + 味わい・雰囲気の一言説明 + 来店を促す一文
+- 150〜200文字程度（サンプルより少し肉付けして）
+- フレーバーの味わいを想像させる表現を入れる
+  例：「さっぱり爽やかな柑橘系」「甘くてフルーティな香り」「スッキリ爽快なメンソール感」
+- 定型文にならず毎回少し変化をつける
+- 語尾や絵文字のパターンも少し変える""",
             messages=[{"role": "user", "content": f"今日のおすすめフレーバー：{flavor}"}]
         )
         return msg.content[0].text.strip()
