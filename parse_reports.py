@@ -10,7 +10,7 @@ from mosh_db import get_conn, migrate_db
 
 REPORTS_BASE = Path("/Users/kiyomotoyuuki/Library/Mobile Documents/com~apple~CloudDocs/Obsidian/Second Brain/MOSH/07_議事録・記録/日報")
 
-STORES = ["柏", "東村山", "おおたかの森", "メイソンズ", "西船橋"]
+STORES = ["柏", "東村山", "おおたか", "メイソンズ", "西船橋"]
 
 # 来店者名リストから除外するキーワード（スタッフ名・システム文言・非個人名）
 EXCLUDE_PATTERNS = [
