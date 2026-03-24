@@ -62,8 +62,8 @@ if "db_migrated" not in st.session_state:
 
 # キャッシュ付き顧客取得（30秒TTL）
 @st.cache_data(ttl=30, show_spinner=False)
-def cached_get_customers(store=None, period=None, rank=None, search=None, sort=None, cross_store=None):
-    return db.get_customers(store=store, period=period, rank=rank, search=search, sort=sort, cross_store=cross_store)
+def cached_get_customers(store=None, period=None, rank=None, search=None):
+    return db.get_customers(store=store, period=period, rank=rank, search=search)
 
 # ─────────────────────────────────────────
 # MOSHブランドCSS（スマホ対応）
