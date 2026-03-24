@@ -400,27 +400,40 @@ div[class*="appview-container"] { padding-top: 0 !important; }
   font-family: 'Noto Sans JP', sans-serif !important;
   font-weight: 500 !important;
 }
-/* 顧客カードボタン */
+/* 顧客カードボタン 共通 */
 [data-testid="baseButton-secondary"] {
   width: 100% !important;
-  background-color: #F5EFE0 !important;
-  color: #6B4226 !important;
-  border: 2px solid #A8D8EA !important;
-  border-radius: 16px !important;
-  padding: 14px 16px !important;
+  border-radius: 12px !important;
+  padding: 12px 16px !important;
   text-align: center !important;
-  white-space: pre-line !important;
-  font-size: 14px !important;
-  line-height: 1.8 !important;
-  min-height: 80px !important;
-  box-shadow: 0 2px 6px rgba(107,66,38,0.12) !important;
-  margin-bottom: 2px !important;
-  transition: background-color 0.15s ease !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  line-height: 1.6 !important;
+  min-height: 56px !important;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.08) !important;
+  margin-bottom: 6px !important;
+  transition: filter 0.15s ease !important;
 }
-[data-testid="baseButton-secondary"]:hover,
-[data-testid="baseButton-secondary"]:active {
-  background-color: #A8D8EA !important;
-  border-color: #6B4226 !important;
+[data-testid="baseButton-secondary"] p {
+  white-space: pre-line !important;
+  text-align: center !important;
+  margin: 0 !important;
+}
+[data-testid="baseButton-secondary"]:hover {
+  filter: brightness(0.94) !important;
+}
+/* ランク別カラー（直前の .rank-x divで制御） */
+.rank-s ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+  background-color: #FFF3CD !important; border: 2px solid #C8922A !important; color: #6B4226 !important;
+}
+.rank-a ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+  background-color: #D6EEF8 !important; border: 2px solid #4AA8D8 !important; color: #1A5F80 !important;
+}
+.rank-b ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+  background-color: #F5EFE0 !important; border: 2px solid #A07850 !important; color: #6B4226 !important;
+}
+.rank-c ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+  background-color: #EFEFEF !important; border: 2px solid #AAAAAA !important; color: #555 !important;
 }
 .stSelectbox > div > div,
 .stTextInput > div > div > input {
@@ -730,6 +743,11 @@ def show_home():
 
     customers = cached_get_customers(store=store_q, period=period_q, search=search_q)
 
+    # 来店ログ0件は非表示（検索時は除く）
+    if not search_q:
+        visit_field = "period_visits" if period_q else "visits_this_month"
+        customers = [c for c in customers if (c.get(visit_field) or 0) > 0]
+
     # S候補の通知
     all_customers_for_s = cached_get_customers()
     s_candidates = [c for c in all_customers_for_s if c["total_visits"] >= 10 and c["rank"] == "A"]
@@ -755,15 +773,15 @@ def show_home():
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
     # ── 顧客カード一覧 ──
-    RANK_SYM = {"V":"◆ V ランク","S":"◆ S ランク","A":"◇ A ランク","B":"○ B ランク","C":"△ C ランク"}
-
     for c in customers:
         name      = c['name']
         store_lbl = c['primary_store'] or '未設定'
-        this_m    = c.get("visits_this_month") or 0
-        rank      = c.get("rank","A")
-        rank_line = RANK_SYM.get(rank, f"◇ {rank} ランク")
-        label     = f"{rank_line}\n{name}\n今月 {this_m} 回  ·  {store_lbl}"
+        rank      = c.get("rank", "A")
+        visit_cnt = (c.get("period_visits") or 0) if period_q else (c.get("visits_this_month") or 0)
+        label     = f"{name}\n{store_lbl}  ·  {visit_cnt}回"
+
+        # ランクマーカー（直後のボタンをCSSで色付けするためのマーカー）
+        st.markdown(f'<div class="rank-{rank.lower()}"></div>', unsafe_allow_html=True)
 
         if st.button(label, key=f"open_{c['id']}", use_container_width=True):
             with st.spinner("読み込み中..."):
