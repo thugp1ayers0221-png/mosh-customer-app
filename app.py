@@ -53,10 +53,17 @@ st.set_page_config(
 )
 
 # DBスキーマの自動マイグレーション（起動時に必ず実行・エラーは無視）
-try:
-    db.migrate_db()
-except Exception:
-    pass
+if "db_migrated" not in st.session_state:
+    try:
+        db.migrate_db()
+        st.session_state.db_migrated = True
+    except Exception:
+        pass
+
+# キャッシュ付き顧客取得（30秒TTL）
+@st.cache_data(ttl=30, show_spinner=False)
+def cached_get_customers(store=None, period=None, rank=None, search=None, sort=None, cross_store=None):
+    return db.get_customers(store=store, period=period, rank=rank, search=search, sort=sort, cross_store=cross_store)
 
 # ─────────────────────────────────────────
 # MOSHブランドCSS（スマホ対応）
@@ -689,10 +696,10 @@ def show_home():
     period_q = None if sel_period == "全期間" else sel_period
     search_q = search.strip() if search.strip() else None
 
-    customers = db.get_customers(store=store_q, period=period_q, search=search_q)
+    customers = cached_get_customers(store=store_q, period=period_q, search=search_q)
 
     # S候補の通知
-    all_customers_for_s = db.get_customers(limit=9999)
+    all_customers_for_s = cached_get_customers()
     s_candidates = [c for c in all_customers_for_s if c["total_visits"] >= 10 and c["rank"] == "A"]
     if s_candidates and user["role"] in ("owner","manager","executive"):
         with st.expander(f"⚠️ Sランク候補 {len(s_candidates)}名（来店10回以上・未昇格）"):
@@ -1150,13 +1157,12 @@ def show_user_management():
 # 今日の営業（告知文・就業報告生成）
 # ─────────────────────────────────────────
 LINE_SAMPLES = """
-- オープンしました！本日のおすすめは無難にピーチティーぽいシーシャです！皆様のご来店心よりお待ちしております♪
-- モッシュ今週もオープンしました！今日おすすめはグレナデン、ピーチ、ジャスミン、パンラズナMIX！！
-- オープンしました！今日のオススメは5月限定ミックスの「正座」です！
-- メイソンズオープンしました！本日のおすすめは「ボムシェル×柑橘フルーツ」です。ご来店お待ちしております。
-- 本日もオープン👍本日は土日なので12時からのオープンです！
-- 今日も12時からオープンしてます〜！週末の閑暇をシーシャでも吸ってゆったりしていきましょ〜
-- オープンいたしました〜！本日のおすすめフレーバーは後ほどお知らせします✨
+- open💭💫 こんばんは、ﾐｷです。本日のおすすめは「チェリースカイ」チェリーを使ったカクテルミックスです🍸🍒 フルーティで甘酸っぱい香りがふわっと広がって、気分がぱっと明るくなる一本！ぜひ試してみてください🫧
+- Open💭💫 本日のおすすめは「🦋ユリシス🦋」宝石のように鮮やかな蒼い羽を持った蝶をイメージしたミックス。清涼感のある爽やかなブルーベリーの香りと、ほんのり甘いフルーツが絶妙にマッチ✨想像しただけでうっとりしませんか？
+- おーぷん！！本日のおすすめはグアバとバニラ！会わなそうでとてもよく合う魔法のMIX！グアバの甘みとバニラのまろやかさが合わさって、不思議と落ち着く味わいです🧡ぜひ🫶
+- 本日も20時よりオープン！おすすめは「完熟メロンボトル」🍈口に入れた瞬間、みずみずしい甘さがじゅわっと広がります。これは実物見てほしい一品😳限定2台なのでお早めに！
+- オープンしました！今日のオススメは「正座」🍵シーシャでは珍しい和風なお茶と和菓子の香り。どこかなつかしくてほっこりする一本です。ぜひ体験しにきてください！
+- メイソンズオープン！本日のおすすめは「ボムシェル×柑橘フルーツ」🍊ボムシェルのトロピカルな甘さに柑橘のさっぱり感が加わって、最高にバランスのいい組み合わせです。ご来店お待ちしております。
 """.strip()
 
 def generate_open_text(flavor: str, store: str) -> str:
@@ -1165,21 +1171,19 @@ def generate_open_text(flavor: str, store: str) -> str:
     try:
         msg = _anthropic_client.messages.create(
             model="claude-haiku-20240307",
-            max_tokens=400,
+            max_tokens=350,
             system=f"""あなたはシーシャバー「MOSH {store}」のスタッフです。
 毎日LINEオープンチャットにオープン告知を投稿します。
 
-【過去の投稿サンプル】
+【過去の投稿サンプル（このトーン・熱量を必ず参考に）】
 {LINE_SAMPLES}
 
-【ルール】
+【必須ルール】
 - カジュアルで親しみやすい文体、絵文字を自然に使う
-- オープンの一言 + フレーバーの紹介 + 味わい・雰囲気の一言説明 + 来店を促す一文
-- 150〜200文字程度（サンプルより少し肉付けして）
-- フレーバーの味わいを想像させる表現を入れる
-  例：「さっぱり爽やかな柑橘系」「甘くてフルーティな香り」「スッキリ爽快なメンソール感」
-- 定型文にならず毎回少し変化をつける
-- 語尾や絵文字のパターンも少し変える""",
+- 構成：①オープンの一言 ②フレーバー名の紹介 ③そのフレーバーの味わい・香り・イメージを2〜3文で具体的に描写（ここが核心！） ④来店を促す一言
+- ③の味わい描写は必ず入れる。「ひと口吸うと〜」「〜な香りがふわっと」「〜をイメージした」などの表現で読む人が飲食しているような感覚になる文を書く
+- 150〜200文字程度
+- 毎回語尾・絵文字・出だしを変えて新鮮に""",
             messages=[{"role": "user", "content": f"今日のおすすめフレーバー：{flavor}"}]
         )
         return msg.content[0].text.strip()
