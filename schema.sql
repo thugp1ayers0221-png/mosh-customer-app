@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS customers (
     notes TEXT DEFAULT '',                       -- 日報メモ集約
     cross_store_flag INTEGER DEFAULT 0,          -- 他店舗に同名あり
     merged_into INTEGER DEFAULT NULL,            -- 同一人物マージ先ID
+    top_change_bonus INTEGER DEFAULT 0,          -- トップ替え手動調整値（月次加算）
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );

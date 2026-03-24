@@ -7,6 +7,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime, date
+import random
+import string
 import db
 
 # ─────────────────────────────────────────
@@ -131,10 +133,37 @@ st.markdown("""
   font-weight: 700;
   letter-spacing: 0.5px;
 }
+.rank-V { background: linear-gradient(135deg,#6B21A8,#A855F7); color: white; letter-spacing:1px; }
 .rank-S { background: var(--rank-s); color: white; }
 .rank-A { background: var(--rank-a); color: white; }
 .rank-B { background: var(--rank-b); color: white; }
 .rank-C { background: var(--rank-c); color: white; }
+
+/* トレンド表示 */
+.trend-up   { color: #16A34A; font-weight:700; font-size:1rem; }
+.trend-down { color: #DC2626; font-weight:700; font-size:1rem; }
+.trend-flat { color: #9CA3AF; font-size:0.9rem; }
+
+/* トップ替え警告（3回到達） */
+.top-change-alert {
+  background: #FEE2E2;
+  border: 2px solid #EF4444;
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #991B1B;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 10px;
+}
+.top-change-ok {
+  background: #F0FDF4;
+  border: 1.5px solid #86EFAC;
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #166534;
+  text-align: center;
+  margin-bottom: 10px;
+}
 
 /* フィルターバー */
 .filter-bar {
@@ -290,13 +319,15 @@ if "page" not in st.session_state:
 if "selected_customer" not in st.session_state:
     st.session_state.selected_customer = None
 
-RANK_LABEL = {"S": "🏆 S", "A": "⭐ A", "B": "🔵 B", "C": "🆕 C"}
+RANK_LABEL = {"V": "💎 VIP", "S": "🏆 S", "A": "⭐ A", "B": "🔵 B", "C": "🆕 C"}
 RANK_DESC  = {
+    "V": "VIP会員（Masons専用）",
     "S": "ロイヤル（10回以上）",
     "A": "顔なじみリピーター",
     "B": "名前不明リピーター",
     "C": "新規",
 }
+RANK_ORDER = {"V": 0, "S": 1, "A": 2, "B": 3, "C": 4}
 SERVICE_LABEL = {
     "normal":     "通常",
     "top_change": "🔄 トップ替え",
@@ -309,8 +340,11 @@ SERVICE_LABEL = {
 def show_login():
     st.markdown("""
     <div class="login-wrap">
-      <div class="login-logo">🫧 MOSH</div>
-      <div class="login-sub">shisha &amp; sweets</div>
+      <div style="text-align:center;margin-bottom:4px;">
+        <img src="https://shisha-mosh.jp/images/top/logo.png"
+             alt="MOSH" style="height:40px;object-fit:contain;" />
+      </div>
+      <div class="login-sub">顧客管理システム</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -337,8 +371,10 @@ def show_header():
     store_label = f" · {user['store']}" if user.get("store") else ""
     st.markdown(f"""
     <div class="mosh-header">
-      <div>
-        <div class="mosh-logo">🫧 MOSH<span>顧客管理</span></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <img src="https://shisha-mosh.jp/images/top/logo.png"
+             alt="MOSH" style="height:28px;object-fit:contain;" />
+        <span style="font-size:0.72rem;color:var(--mosh-brown);font-weight:500;letter-spacing:0.5px;">顧客管理</span>
       </div>
       <div class="mosh-user-badge">{user['username']} / {role_label}{store_label}</div>
     </div>
@@ -410,20 +446,32 @@ def show_home():
     store_str  = sel_store
     st.caption(f"{store_str} · {period_str} · {len(customers)}名")
 
-    # 一覧（カード全体をボタンに）
+    # 一覧（カード全体をボタンに・トレンド表示付き）
     for c in customers:
         visits_n = c.get("period_visits") or c["total_visits"]
         last_date = c["last_visit_date"] or "-"
 
         rank = c.get("rank","A")
-        rank_emoji = {"S":"🏆","A":"⭐","B":"🔵","C":"🆕"}.get(rank, rank)
+        rank_emoji = {"V":"💎","S":"🏆","A":"⭐","B":"🔵","C":"🆕"}.get(rank, rank)
         member_mark = " ✅" if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
         cross_mark  = " ⚠️" if c["cross_store_flag"] else ""
         store_label = c['primary_store'] or '未設定'
 
+        # 前月比トレンド
+        this_m = c.get("visits_this_month") or 0
+        last_m = c.get("visits_last_month") or 0
+        if this_m > last_m and last_m > 0:
+            trend = f"↑+{this_m - last_m}"
+        elif this_m < last_m and this_m > 0:
+            trend = f"↓{this_m - last_m}"
+        elif this_m > 0 and last_m == 0:
+            trend = "✨新"
+        else:
+            trend = ""
+
         btn_label = (
-            f"{rank_emoji} **{c['name']}**{member_mark}{cross_mark}\n"
-            f"{store_label}　最終来店: {last_date}　　　**{visits_n}回**"
+            f"{rank_emoji} **{c['name']}**{member_mark}{cross_mark}　{trend}\n"
+            f"{store_label}　最終: {last_date}　来店 **{visits_n}回**"
         )
         if st.button(btn_label, key=f"open_{c['id']}", use_container_width=True):
             st.session_state.selected_customer = c["id"]
@@ -585,12 +633,16 @@ def show_detail():
             st.divider()
             st.markdown("**🏷 ランク設定**")
             current_rank = c.get("rank","A")
+
+            # Masonsのみ VIP選択肢を追加
+            rank_options = ["V","S","A","B","C"] if c["primary_store"] == "メイソンズ" else ["S","A","B","C"]
+            rank_idx = rank_options.index(current_rank) if current_rank in rank_options else 1
             new_rank = st.radio(
                 "ランク",
-                ["S","A","B","C"],
-                index=["S","A","B","C"].index(current_rank),
+                rank_options,
+                index=rank_idx,
                 horizontal=True,
-                help="S=ロイヤル(10回以上) / A=顔なじみ / B=名前不明リピーター / C=新規",
+                help="V=VIP(Masons専用) / S=ロイヤル(10回以上) / A=顔なじみ / B=名前不明 / C=新規",
             )
             if new_rank != current_rank:
                 if st.button(f"{current_rank} → {new_rank} に変更", type="primary"):
@@ -598,7 +650,7 @@ def show_detail():
                     st.success("ランクを更新しました")
                     st.rerun()
 
-            # メイソンズ：会員フラグ
+            # メイソンズ：会員フラグ + トップ替えカウンター
             if c["primary_store"] == "メイソンズ":
                 st.divider()
                 is_member = st.checkbox("✅ メイソンズ会員", value=bool(c["is_member"]))
@@ -609,6 +661,42 @@ def show_detail():
                                 "UPDATE customers SET is_member=? WHERE id=?",
                                 (1 if is_member else 0, cid)
                             )
+                        st.rerun()
+
+                # VIP トップ替えカウンター
+                st.divider()
+                from datetime import date as _date
+                this_ym = _date.today().strftime('%Y-%m')
+                total_tc, auto_tc, bonus_tc = db.get_monthly_top_changes(cid, this_ym)
+
+                st.markdown(f"**🔄 トップ替え回数（{this_ym}）**")
+                if total_tc >= 3:
+                    st.markdown(f"""
+                    <div class="top-change-alert">
+                      🔴 今月 {total_tc}回 ／ 上限3回に到達！
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    remaining = 3 - total_tc
+                    st.markdown(f"""
+                    <div class="top-change-ok">
+                      ✅ 今月 {total_tc}回（残り {remaining}回）
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                st.caption(f"自動カウント: {auto_tc}回　手動調整: {bonus_tc:+d}回")
+                col_m, col_p, col_r = st.columns(3)
+                with col_m:
+                    if st.button("－1", key="tc_minus", use_container_width=True):
+                        db.adjust_top_change_bonus(cid, -1)
+                        st.rerun()
+                with col_p:
+                    if st.button("＋1", key="tc_plus", use_container_width=True):
+                        db.adjust_top_change_bonus(cid, 1)
+                        st.rerun()
+                with col_r:
+                    if st.button("リセット", key="tc_reset", use_container_width=True):
+                        db.reset_top_change_bonus(cid)
                         st.rerun()
 
 # ─────────────────────────────────────────

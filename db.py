@@ -17,11 +17,17 @@ def get_conn():
 
 def get_customers(store=None, period=None, rank=None, search=None,
                   order_by="total_visits", limit=200):
-    """顧客一覧を取得（フィルタ・ソート対応）"""
+    """顧客一覧を取得（フィルタ・ソート・前月比トレンド対応）"""
     with get_conn() as conn:
         base = """
             SELECT c.*,
-                COUNT(DISTINCT v.date) as period_visits
+                COUNT(DISTINCT v.date) as period_visits,
+                (SELECT COUNT(*) FROM visits
+                 WHERE customer_id=c.id
+                 AND substr(date,1,7)=strftime('%Y-%m','now')) as visits_this_month,
+                (SELECT COUNT(*) FROM visits
+                 WHERE customer_id=c.id
+                 AND substr(date,1,7)=strftime('%Y-%m','now','-1 month')) as visits_last_month
             FROM customers c
             LEFT JOIN visits v ON c.id = v.customer_id
                 AND (? IS NULL OR v.store = ?)
@@ -203,6 +209,39 @@ def add_note(customer_id, note, added_by):
         conn.execute(
             "UPDATE customers SET notes=?, updated_at=datetime('now') WHERE id=?",
             (updated, customer_id)
+        )
+
+def get_monthly_top_changes(customer_id, yearmonth=None):
+    """今月のトップ替え回数（自動 + 手動調整）を返す"""
+    if yearmonth is None:
+        from datetime import date as _date
+        yearmonth = _date.today().strftime('%Y-%m')
+    with get_conn() as conn:
+        auto = conn.execute("""
+            SELECT COUNT(*) FROM visits
+            WHERE customer_id=? AND service_type='top_change'
+            AND substr(date,1,7)=?
+        """, (customer_id, yearmonth)).fetchone()[0]
+        row = conn.execute(
+            "SELECT top_change_bonus FROM customers WHERE id=?", (customer_id,)
+        ).fetchone()
+        bonus = row[0] if row and row[0] else 0
+        return auto + bonus, auto, bonus
+
+def adjust_top_change_bonus(customer_id, delta):
+    """トップ替え手動調整（+1 or -1）"""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE customers SET top_change_bonus=top_change_bonus+?, updated_at=datetime('now') WHERE id=?",
+            (delta, customer_id)
+        )
+
+def reset_top_change_bonus(customer_id):
+    """月次リセット用"""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE customers SET top_change_bonus=0, updated_at=datetime('now') WHERE id=?",
+            (customer_id,)
         )
 
 def get_all_users():
