@@ -116,8 +116,16 @@ def parse_visitor_names(text: str) -> list[dict]:
 
         is_new = '🆕' in line or clean.startswith('新規')
 
-        # カンマ・読点・中黒・「と」で分割（例: まことさんとしょうたさん → 2人に分離）
-        parts = re.split(r'[、,，・]|(?<=さん)と(?=\w)|(?<=くん)と(?=\w)|(?<=ちゃん)と(?=\w)', clean)
+        # 区切り文字で分割して個人名を抽出
+        # 対応: 読点・カンマ・中黒・&・＆・「と」（敬称の後）
+        parts = re.split(
+            r'[、,，・&＆]'
+            r'|(?<=[さんくんちゃん])と(?=\S)'
+            r'|(?<=さん)と(?=\S)'
+            r'|(?<=くん)と(?=\S)'
+            r'|(?<=ちゃん)と(?=\S)',
+            clean
+        )
 
         for part in parts:
             part = part.strip()
@@ -140,6 +148,11 @@ def parse_visitor_names(text: str) -> list[dict]:
                 continue
 
             if re.match(r'^[\d\s\W]+$', normalized):
+                continue
+
+            # 複数人が残っている場合はスキップ（さん・くん・ちゃんが2回以上 or &が残存）
+            honorific_count = len(re.findall(r'さん|くん|ちゃん', part))
+            if honorific_count >= 2 or re.search(r'[&＆]', part):
                 continue
 
             visitors.append({
@@ -348,31 +361,40 @@ def import_all_reports():
     migrate_db()
 
     total = 0
-    with get_conn() as conn:
-        for store in STORES:
-            store_path = REPORTS_BASE / store
-            if not store_path.exists():
-                print(f"⚠️  {store}: フォルダなし")
-                continue
+    for store in STORES:
+        store_path = REPORTS_BASE / store
+        if not store_path.exists():
+            print(f"⚠️  {store}: フォルダなし")
+            continue
 
-            files = sorted(store_path.rglob("20[0-9][0-9]-[0-9][0-9]-[0-9][0-9].md"))
-            print(f"📁 {store}: {len(files)}件処理中...")
+        files = sorted(store_path.rglob("20[0-9][0-9]-[0-9][0-9]-[0-9][0-9].md"))
+        print(f"📁 {store}: {len(files)}件処理中...")
 
-            for i, f in enumerate(files):
+        for i, f in enumerate(files):
+            # ファイルごとに独立したコネクションを使う（デッドロック防止）
+            for attempt in range(3):
                 try:
-                    parse_report_file(f, store, conn)
+                    with get_conn() as conn:
+                        parse_report_file(f, store, conn)
+                    break
                 except Exception as e:
+                    if attempt < 2 and "deadlock" in str(e).lower():
+                        import time; time.sleep(0.5)
+                        continue
                     print(f"  ⚠️ {f.name}: {e}")
+                    break
 
-                if (i + 1) % 100 == 0:
-                    print(f"  {i+1}/{len(files)}...")
+            if (i + 1) % 100 == 0:
+                print(f"  {i+1}/{len(files)}...")
 
+        with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) as cnt FROM visits WHERE store=%s", (store,))
                 count = cur.fetchone()['cnt']
-            print(f"  ✅ {store}: 来店ログ {count}件")
-            total += len(files)
+        print(f"  ✅ {store}: 来店ログ {count}件")
+        total += len(files)
 
+    with get_conn() as conn:
         update_cross_store_flags(conn)
         auto_rank(conn)
 

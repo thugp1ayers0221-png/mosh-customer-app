@@ -80,10 +80,10 @@ st.markdown("""
   --mosh-brown:  #6B4226;
   --mosh-dark:   #2D1F0F;
   --mosh-green:  #5B8F5F;
-  --rank-s:      #C9A84C;
-  --rank-a:      #7B5230;
-  --rank-b:      #5B7FA6;
-  --rank-c:      #9E9E9E;
+  --rank-s:      #C8922A;
+  --rank-a:      #4AA8D8;
+  --rank-b:      #c8b89a;
+  --rank-c:      #AAAAAA;
   --bg:          #F0F7FA;
 }
 
@@ -250,10 +250,10 @@ div[class*="appview-container"] { padding-top: 0 !important; }
   letter-spacing: 0.5px;
 }
 .rank-V { background: linear-gradient(135deg,#6B21A8,#A855F7); color: white; letter-spacing:1px; }
-.rank-S { background: var(--rank-s); color: white; }
-.rank-A { background: var(--rank-a); color: white; }
-.rank-B { background: var(--rank-b); color: white; }
-.rank-C { background: var(--rank-c); color: white; }
+.rank-S { background: var(--rank-s); color: #fff; }
+.rank-A { background: var(--rank-a); color: #fff; }
+.rank-B { background: var(--rank-b); color: #6B4226; }
+.rank-C { background: var(--rank-c); color: #555; }
 
 /* トレンド表示 */
 .trend-up   { color: #16A34A; font-weight:700; font-size:1rem; }
@@ -422,18 +422,15 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 [data-testid="baseButton-secondary"]:hover {
   filter: brightness(0.94) !important;
 }
-/* ランク別カラー（直前の .rank-x divで制御） */
+/* ランク別カラー（直前の .rank-x divで制御） S/A/Bのみ */
 .rank-s ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
   background-color: #FFF3CD !important; border: 2px solid #C8922A !important; color: #6B4226 !important;
 }
 .rank-a ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
-  background-color: #D6EEF8 !important; border: 2px solid #4AA8D8 !important; color: #1A5F80 !important;
+  background-color: #D6EEF8 !important; border: 2px solid #A8D8EA !important; color: #1A5F80 !important;
 }
 .rank-b ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
-  background-color: #F5EFE0 !important; border: 2px solid #A07850 !important; color: #6B4226 !important;
-}
-.rank-c ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
-  background-color: #EFEFEF !important; border: 2px solid #AAAAAA !important; color: #555 !important;
+  background-color: #F5EFE0 !important; border: 2px solid #c8b89a !important; color: #6B4226 !important;
 }
 .stSelectbox > div > div,
 .stTextInput > div > div > input {
