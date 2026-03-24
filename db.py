@@ -275,14 +275,14 @@ def get_all_users():
             "SELECT id, username, role, store, created_at FROM users ORDER BY role, username"
         ).fetchall()]
 
-def add_user(username, password, role, store=""):
+def add_user(username, password, role, store="", email=""):
     import hashlib
     pw_hash = hashlib.sha256(password.encode()).hexdigest()
     with get_conn() as conn:
         try:
             conn.execute(
-                "INSERT INTO users (username, password_hash, role, store) VALUES (?,?,?,?)",
-                (username, pw_hash, role, store)
+                "INSERT INTO users (username, password_hash, role, store, email) VALUES (?,?,?,?,?)",
+                (username, pw_hash, role, store, email)
             )
             return True
         except Exception:

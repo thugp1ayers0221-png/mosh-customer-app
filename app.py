@@ -334,6 +334,32 @@ if st.session_state.user is None:
             st.session_state.user = auto_user
             st.session_state.login_token = saved_token
 
+# ─── URLパラメータからページ復元（スマホ戻るボタン対応）───
+if st.session_state.user is not None:
+    _p = st.query_params.get("p", "home")
+    if _p == "detail":
+        _id = st.query_params.get("id", None)
+        if _id and str(_id).isdigit():
+            st.session_state.selected_customer = int(_id)
+            st.session_state.page = "detail"
+    else:
+        # homeに戻ってきたらdetailページをリセット
+        if st.session_state.page == "detail" and "id" not in st.query_params:
+            st.session_state.page = "home"
+            st.session_state.selected_customer = None
+
+# ─── スマホ戻るボタン: popstateでリロード ───
+st.components.v1.html("""
+<script>
+(function(){
+  // ブラウザの戻る/進むボタンでURLが変わったらStreamlitをリロード
+  window.addEventListener('popstate', function(e) {
+    window.location.reload();
+  });
+})();
+</script>
+""", height=0)
+
 RANK_LABEL = {"V": "💎 VIP", "S": "🏆 S", "A": "⭐ A", "B": "🔵 B", "C": "🆕 C"}
 RANK_DESC  = {
     "V": "VIP会員（Masons専用）",
@@ -496,6 +522,11 @@ def show_home():
         if st.button(btn_label, key=f"open_{c['id']}", use_container_width=True):
             st.session_state.selected_customer = c["id"]
             st.session_state.page = "detail"
+            # URLを更新してブラウザ履歴に積む（戻るボタン対応）
+            new_params = {"p": "detail", "id": str(c["id"])}
+            if st.session_state.login_token:
+                new_params["t"] = st.session_state.login_token
+            st.query_params.update(new_params)
             st.rerun()
 
 # ─────────────────────────────────────────
@@ -509,9 +540,14 @@ def show_detail():
         st.error("顧客が見つかりません")
         return
 
-    # 戻るボタン
+    # 戻るボタン（ブラウザ履歴もリセット）
     if st.button("← 一覧に戻る"):
         st.session_state.page = "home"
+        st.session_state.selected_customer = None
+        # URLからdetailパラメータを除去
+        st.query_params.clear()
+        if st.session_state.login_token:
+            st.query_params["t"] = st.session_state.login_token
         st.rerun()
 
     rank = c.get("rank","A")
@@ -854,6 +890,7 @@ def show_user_management():
 
     with st.form("add_user_form"):
         new_username = st.text_input("ユーザー名（ログインID）", placeholder="例: tanaka_kashiwa")
+        new_email    = st.text_input("メールアドレス（招待メール送信用）", placeholder="例: tanaka@example.com")
         new_role = st.selectbox("権限", ["staff","manager","owner"],
             format_func=lambda x: {"staff":"スタッフ","manager":"店長","owner":"オーナー"}[x],
             key="new_user_role")
@@ -863,23 +900,46 @@ def show_user_management():
         auto_pw = generate_password()
         new_password = st.text_input("パスワード", value=auto_pw,
             help="自動生成されています。変更可能です。")
-        submitted = st.form_submit_button("アカウントを作成", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("アカウントを作成 & 招待メールを送る", type="primary", use_container_width=True)
 
     if submitted:
         if not new_username.strip():
             st.error("ユーザー名を入力してください")
         else:
-            ok = db.add_user(new_username.strip(), new_password, new_role, new_store)
+            ok = db.add_user(new_username.strip(), new_password, new_role, new_store, new_email.strip())
             if ok:
                 role_jp = {"staff":"スタッフ","manager":"店長","owner":"オーナー"}[new_role]
-                st.success(f"✅ アカウントを作成しました")
+                APP_URL  = "https://mosh-customer-app.streamlit.app"
+                invite_msg = (
+                    f"【MOSH 顧客管理システム】ログイン情報\n\n"
+                    f"🌐 URL: {APP_URL}\n"
+                    f"👤 ユーザー名: {new_username.strip()}\n"
+                    f"🔑 パスワード: {new_password}\n"
+                    f"役割: {role_jp}" + (f" / {new_store}" if new_store else "")
+                )
+                # メール送信を試みる（Streamlit Secrets にSMTP設定があれば）
+                mail_sent = False
+                if new_email.strip():
+                    try:
+                        import smtplib
+                        from email.mime.text import MIMEText
+                        _s = st.secrets.get("smtp", {})
+                        if _s:
+                            msg = MIMEText(invite_msg, "plain", "utf-8")
+                            msg["Subject"] = "【MOSH】顧客管理システムへの招待"
+                            msg["From"]    = _s["user"]
+                            msg["To"]      = new_email.strip()
+                            with smtplib.SMTP_SSL(_s["host"], int(_s.get("port", 465))) as srv:
+                                srv.login(_s["user"], _s["password"])
+                                srv.send_message(msg)
+                            mail_sent = True
+                    except Exception:
+                        mail_sent = False
+
+                st.success("✅ アカウントを作成しました" + ("　招待メールを送信しました ✉️" if mail_sent else ""))
                 st.info(
-                    f"**招待情報（本人に伝えてください）**\n\n"
-                    f"🌐 URL: https://mosh-customer-app.streamlit.app\n\n"
-                    f"👤 ユーザー名: `{new_username.strip()}`\n\n"
-                    f"🔑 パスワード: `{new_password}`\n\n"
-                    f"役割: {role_jp}"
-                    + (f"　店舗: {new_store}" if new_store else "")
+                    "**招待情報（LINEやDiscordで共有してください）**\n\n"
+                    + invite_msg.replace("\n", "\n\n")
                 )
                 st.rerun()
             else:
