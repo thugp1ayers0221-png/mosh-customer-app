@@ -12,12 +12,25 @@ REPORTS_BASE = Path("/Users/kiyomotoyuuki/Library/Mobile Documents/com~apple~Clo
 
 STORES = ["柏", "東村山", "おおたかの森", "メイソンズ", "西船橋"]
 
-# 来店者名リストから除外するキーワード（スタッフ名・システム文言）
+# 来店者名リストから除外するキーワード（スタッフ名・システム文言・非個人名）
 EXCLUDE_PATTERNS = [
     r'^【', r'^（', r'^\[', r'終業報告', r'連絡事項', r'レジ締め',
     r'^新規', r'^リピ', r'^計', r'^カフェ', r'^S$', r'^B$', r'^C$',
     r'お願い', r'補充', r'掃除', r'報告', r'確認', r'問い合わせ',
+    # 人数・性別表記（個人名ではない）
+    r'\d+名', r'\d+人', r'[男女]性', r'男の子', r'女の子', r'^男$', r'^女$',
+    r'^一見', r'^初見', r'リピーター$', r'^グループ', r'^お連れ',
+    # 助詞・接続詞を含む文章（説明文・感想文）
+    r'[をへ]', r'ました$', r'ます$', r'です$', r'てる$', r'てた$',
+    r'見て', r'来て', r'持って', r'持ち', r'なって', r'して',
+    # 説明的なキーワード
+    r'おすすめ', r'興味', r'ミックス', r'フレーバー', r'シーシャ',
+    r'来店', r'予約', r'注文', r'インスタ', r'Twitter', r'X$', r'TikTok',
+    r'SNS', r'口コミ', r'クーポン', r'初回',
 ]
+
+# 個人名として許容する最大文字数（敬称込みで）
+MAX_NAME_LEN = 12
 
 # サービスタイプ判定
 TOP_CHANGE_PATTERN = re.compile(r'トップ替え|トップ変え|topチェンジ', re.IGNORECASE)
@@ -103,6 +116,9 @@ def parse_visitor_names(text: str) -> list[dict]:
         for part in parts:
             part = part.strip()
             if not part or len(part) < 2:
+                continue
+            # 長すぎる場合は個人名ではなく説明文・センテンス
+            if len(part) > MAX_NAME_LEN:
                 continue
 
             # サービスタイプ判定

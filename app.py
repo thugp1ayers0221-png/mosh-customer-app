@@ -263,6 +263,20 @@ st.markdown("""
 div[data-testid="stTabs"] button {
   font-family: 'Noto Sans JP', sans-serif !important;
 }
+
+/* ─── Streamlit UI要素を非表示（GitHub/Fork/デプロイ/フッター全て）─── */
+header[data-testid="stHeader"]         { display: none !important; }
+footer                                  { display: none !important; }
+#MainMenu                               { display: none !important; }
+[data-testid="stToolbar"]              { display: none !important; }
+[data-testid="stDecoration"]           { display: none !important; }
+.stDeployButton                        { display: none !important; }
+[data-testid="stStatusWidget"]         { display: none !important; }
+[data-testid="stToolbarActionButton"]  { display: none !important; }
+/* アプリ下部のStreamlit広告バナー */
+[data-testid="stBottom"]               { display: none !important; }
+.viewerBadge_container__r5tak         { display: none !important; }
+#stDecoration                          { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -304,8 +318,8 @@ def show_login():
         col1, col2, col3 = st.columns([1,2,1])
         with col2:
             st.markdown("#### ログイン")
-            username = st.text_input("ユーザー名", placeholder="例: kii001")
-            password = st.text_input("パスワード", type="password", placeholder="MOSH4148")
+            username = st.text_input("ユーザー名", placeholder="ユーザー名を入力")
+            password = st.text_input("パスワード", type="password", placeholder="パスワードを入力")
             if st.button("ログイン", use_container_width=True, type="primary"):
                 user = db.verify_user(username, password)
                 if user:
@@ -396,35 +410,25 @@ def show_home():
     store_str  = sel_store
     st.caption(f"{store_str} · {period_str} · {len(customers)}名")
 
-    # 一覧
+    # 一覧（カード全体をボタンに）
     for c in customers:
         visits_n = c.get("period_visits") or c["total_visits"]
         last_date = c["last_visit_date"] or "-"
 
         rank = c.get("rank","A")
-        rank_html = f'<span class="rank-badge rank-{rank}">{rank}</span>'
-        member_html = ' <span style="font-size:0.7rem;color:#5B8F5F;">✅会員</span>' if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
-        cross_html  = ' <span style="font-size:0.7rem;color:#F59E0B;">⚠️他店舗に同名</span>' if c["cross_store_flag"] else ""
+        rank_emoji = {"S":"🏆","A":"⭐","B":"🔵","C":"🆕"}.get(rank, rank)
+        member_mark = " ✅" if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
+        cross_mark  = " ⚠️" if c["cross_store_flag"] else ""
+        store_label = c['primary_store'] or '未設定'
 
-        card_html = f"""
-        <div class="mosh-card" onclick="">
-          <div>
-            <div style="float:right;text-align:right">
-              <div class="mosh-card-visits">{visits_n}<span>来店回数</span></div>
-            </div>
-            <div class="mosh-card-name">{c['name']} {rank_html}{member_html}{cross_html}</div>
-            <div class="mosh-card-meta">{c['primary_store'] or '未設定'} · 最終: {last_date}</div>
-          </div>
-        </div>
-        """
-        col1, col2 = st.columns([9, 1])
-        with col1:
-            st.markdown(card_html, unsafe_allow_html=True)
-        with col2:
-            if st.button("▶", key=f"open_{c['id']}", help="詳細を見る"):
-                st.session_state.selected_customer = c["id"]
-                st.session_state.page = "detail"
-                st.rerun()
+        btn_label = (
+            f"{rank_emoji} **{c['name']}**{member_mark}{cross_mark}\n"
+            f"{store_label}　最終来店: {last_date}　　　**{visits_n}回**"
+        )
+        if st.button(btn_label, key=f"open_{c['id']}", use_container_width=True):
+            st.session_state.selected_customer = c["id"]
+            st.session_state.page = "detail"
+            st.rerun()
 
 # ─────────────────────────────────────────
 # 顧客詳細
@@ -624,9 +628,12 @@ def show_dashboard():
     with c1:
         sel_store = st.selectbox("店舗", stores,
             index=stores.index(default_store) if default_store in stores else 0,
-            label_visibility="collapsed")
+            label_visibility="collapsed",
+            key="dash_store")
     with c2:
-        sel_period = st.selectbox("期間", periods, label_visibility="collapsed")
+        sel_period = st.selectbox("期間", periods,
+            label_visibility="collapsed",
+            key="dash_period")
 
     store_q  = None if sel_store == "全店舗" else sel_store
     period_q = None if sel_period == "全期間" else sel_period
@@ -702,6 +709,75 @@ def show_dashboard():
             """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────
+# ユーザー管理（オーナーのみ）
+# ─────────────────────────────────────────
+import random, string
+
+def generate_password(length=8):
+    chars = string.ascii_letters + string.digits
+    return ''.join(random.choices(chars, k=length))
+
+def show_user_management():
+    st.markdown("#### 👤 スタッフアカウント管理")
+
+    # 現在のユーザー一覧
+    users = db.get_all_users()
+    role_label = {"owner":"オーナー","manager":"店長","staff":"スタッフ"}
+    current_user = st.session_state.user
+
+    st.caption(f"登録済み: {len(users)}名")
+    for u in users:
+        col1, col2 = st.columns([5, 1])
+        with col1:
+            role_jp = role_label.get(u["role"], u["role"])
+            store_str = f" · {u['store']}" if u.get("store") else ""
+            st.markdown(f"**{u['username']}**　{role_jp}{store_str}")
+        with col2:
+            if u["username"] != current_user["username"]:
+                if st.button("削除", key=f"del_user_{u['id']}"):
+                    db.delete_user(u["id"])
+                    st.success(f"{u['username']} を削除しました")
+                    st.rerun()
+
+    st.divider()
+    st.markdown("#### ➕ 新しいスタッフを追加")
+
+    STORES = ["", "柏", "東村山", "おおたかの森", "メイソンズ", "西船橋"]
+
+    with st.form("add_user_form"):
+        new_username = st.text_input("ユーザー名（ログインID）", placeholder="例: tanaka_kashiwa")
+        new_role = st.selectbox("権限", ["staff","manager","owner"],
+            format_func=lambda x: {"staff":"スタッフ","manager":"店長","owner":"オーナー"}[x],
+            key="new_user_role")
+        new_store = st.selectbox("担当店舗", STORES,
+            format_func=lambda x: x if x else "（全店舗）",
+            key="new_user_store")
+        auto_pw = generate_password()
+        new_password = st.text_input("パスワード", value=auto_pw,
+            help="自動生成されています。変更可能です。")
+        submitted = st.form_submit_button("アカウントを作成", type="primary", use_container_width=True)
+
+    if submitted:
+        if not new_username.strip():
+            st.error("ユーザー名を入力してください")
+        else:
+            ok = db.add_user(new_username.strip(), new_password, new_role, new_store)
+            if ok:
+                role_jp = {"staff":"スタッフ","manager":"店長","owner":"オーナー"}[new_role]
+                st.success(f"✅ アカウントを作成しました")
+                st.info(
+                    f"**招待情報（本人に伝えてください）**\n\n"
+                    f"🌐 URL: https://mosh-customer-app.streamlit.app\n\n"
+                    f"👤 ユーザー名: `{new_username.strip()}`\n\n"
+                    f"🔑 パスワード: `{new_password}`\n\n"
+                    f"役割: {role_jp}"
+                    + (f"　店舗: {new_store}" if new_store else "")
+                )
+                st.rerun()
+            else:
+                st.error("そのユーザー名はすでに使われています")
+
+# ─────────────────────────────────────────
 # メインルーティング
 # ─────────────────────────────────────────
 if not st.session_state.user:
@@ -712,9 +788,18 @@ else:
     if st.session_state.page == "detail":
         show_detail()
     else:
-        # ナビゲーション
-        tab_home, tab_dash = st.tabs(["👥 顧客一覧", "📊 ダッシュボード"])
-        with tab_home:
-            show_home()
-        with tab_dash:
-            show_dashboard()
+        user = st.session_state.user
+        if user["role"] == "owner":
+            tab_home, tab_dash, tab_users = st.tabs(["👥 顧客一覧", "📊 ダッシュボード", "⚙️ ユーザー管理"])
+            with tab_home:
+                show_home()
+            with tab_dash:
+                show_dashboard()
+            with tab_users:
+                show_user_management()
+        else:
+            tab_home, tab_dash = st.tabs(["👥 顧客一覧", "📊 ダッシュボード"])
+            with tab_home:
+                show_home()
+            with tab_dash:
+                show_dashboard()

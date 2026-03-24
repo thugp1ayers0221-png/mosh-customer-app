@@ -119,8 +119,11 @@ def get_dashboard_stats(store=None, period=None):
         """, rp).fetchall():
             rank_counts[row['rank']] = row['cnt']
 
+        # None値を0に変換（SUM()が空の場合NULLになる）
+        summary_dict = dict(summary) if summary else {}
+        summary_dict = {k: (v if v is not None else 0) for k, v in summary_dict.items()}
         return {
-            'summary': dict(summary) if summary else {},
+            'summary': summary_dict,
             'rank_counts': rank_counts,
         }
 
@@ -200,6 +203,38 @@ def add_note(customer_id, note, added_by):
         conn.execute(
             "UPDATE customers SET notes=?, updated_at=datetime('now') WHERE id=?",
             (updated, customer_id)
+        )
+
+def get_all_users():
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT id, username, role, store, created_at FROM users ORDER BY role, username"
+        ).fetchall()]
+
+def add_user(username, password, role, store=""):
+    import hashlib
+    pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    with get_conn() as conn:
+        try:
+            conn.execute(
+                "INSERT INTO users (username, password_hash, role, store) VALUES (?,?,?,?)",
+                (username, pw_hash, role, store)
+            )
+            return True
+        except Exception:
+            return False
+
+def delete_user(user_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+
+def update_user_password(username, new_password):
+    import hashlib
+    pw_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET password_hash=? WHERE username=?",
+            (pw_hash, username)
         )
 
 def verify_user(username, password):
