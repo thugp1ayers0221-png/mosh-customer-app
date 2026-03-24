@@ -9,7 +9,30 @@ import plotly.express as px
 from datetime import datetime, date
 import random
 import string
+import io
+import base64
 import mosh_db as db
+
+# ─── AI機能（オプション：APIキーがない場合はスキップ）───
+try:
+    import anthropic
+    _anthropic_client = anthropic.Anthropic(api_key=st.secrets.get("ANTHROPIC_API_KEY", ""))
+    HAS_ANTHROPIC = True
+except Exception:
+    HAS_ANTHROPIC = False
+
+try:
+    from openai import OpenAI as _OpenAI
+    _openai_client = _OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+    HAS_OPENAI = True
+except Exception:
+    HAS_OPENAI = False
+
+try:
+    from PIL import Image, ImageDraw, ImageFont
+    HAS_PIL = True
+except Exception:
+    HAS_PIL = False
 
 # ─────────────────────────────────────────
 # ページ設定
@@ -1043,6 +1066,200 @@ def show_user_management():
         st.caption(f"権限: {role_jp}　店舗: {store_str}　← このURLをLINE/Discordで送ってください")
 
 # ─────────────────────────────────────────
+# 今日の営業（告知文・就業報告生成）
+# ─────────────────────────────────────────
+LINE_SAMPLES = """
+- オープンしました！本日のおすすめは無難にピーチティーぽいシーシャです！皆様のご来店心よりお待ちしております♪
+- モッシュ今週もオープンしました！今日おすすめはグレナデン、ピーチ、ジャスミン、パンラズナMIX！！
+- オープンしました！今日のオススメは5月限定ミックスの「正座」です！
+- メイソンズオープンしました！本日のおすすめは「ボムシェル×柑橘フルーツ」です。ご来店お待ちしております。
+- 本日もオープン👍本日は土日なので12時からのオープンです！
+- 今日も12時からオープンしてます〜！週末の閑暇をシーシャでも吸ってゆったりしていきましょ〜
+- オープンいたしました〜！本日のおすすめフレーバーは後ほどお知らせします✨
+""".strip()
+
+def generate_open_text(flavor: str, store: str) -> str:
+    if not HAS_ANTHROPIC:
+        return f"オープンしました！本日のおすすめは{flavor}です！皆様のご来店心よりお待ちしております♪"
+    try:
+        msg = _anthropic_client.messages.create(
+            model="claude-haiku-20240307",
+            max_tokens=300,
+            system=f"""あなたはシーシャバー「MOSH {store}」のスタッフです。
+毎日LINEオープンチャットにオープン告知を投稿します。
+以下のサンプルを参考に、カジュアルで親しみやすい文体（絵文字あり）で告知文を1つ作成してください。
+100文字程度で簡潔に。
+
+サンプル：
+{LINE_SAMPLES}""",
+            messages=[{"role": "user", "content": f"今日のおすすめフレーバー：{flavor}"}]
+        )
+        return msg.content[0].text.strip()
+    except Exception:
+        return f"オープンしました！本日のおすすめは{flavor}です！皆様のご来店心よりお待ちしております♪"
+
+def generate_discord_report(store: str, date_str: str, flavor: str,
+                             new_count: int, repeat_count: int,
+                             visitor_names: str, done_today: str,
+                             todo_tomorrow: str, notice: str,
+                             register_diff: str) -> str:
+    total = new_count + repeat_count
+    lines = [
+        f"> **終業報告** {date_str}",
+        f">",
+        f"> 【今日やったこと】",
+    ]
+    for item in done_today.strip().splitlines():
+        if item.strip():
+            lines.append(f"> ・{item.strip()}")
+    lines += [f">", f"> 【明日やってほしいこと】"]
+    for item in todo_tomorrow.strip().splitlines():
+        if item.strip():
+            lines.append(f"> ・{item.strip()}")
+    lines += [
+        f">",
+        f"> 【来店人数】",
+        f"> 新規　　　{new_count}名",
+        f"> リピ　　　{repeat_count}名",
+        f"> ￣￣￣￣￣￣￣￣￣￣￣￣￣",
+        f"> 計　　　　{total}名",
+        f">",
+        f"> 【来店者記録】",
+    ]
+    for name in visitor_names.strip().splitlines():
+        if name.strip():
+            lines.append(f"> {name.strip()}")
+    lines += [
+        f">",
+        f"> 【連絡事項】",
+        f"> ①営業の様子",
+        f"> {notice.strip()}",
+        f">",
+        f"> 【レジ締め過不足】",
+        f"> ¥{register_diff}",
+    ]
+    return "\n".join(lines)
+
+def generate_flavor_image(flavor: str):
+    if not HAS_OPENAI or not HAS_PIL:
+        return None
+    try:
+        prompt = (
+            f"Premium shisha hookah with {flavor} flavor. "
+            f"Beautiful fruits and ingredients surrounding an elegant hookah pipe. "
+            f"Smoke atmosphere, dark moody background, professional food photography style. "
+            f"High quality, appetizing, Instagram-worthy image."
+        )
+        response = _openai_client.images.generate(
+            model="dall-e-3", prompt=prompt,
+            size="1024x1024", quality="standard", n=1,
+        )
+        import requests as _requests
+        img_url = response.data[0].url
+        img_data = _requests.get(img_url).content
+        img = Image.open(io.BytesIO(img_data)).convert("RGBA")
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+        W, H = img.size
+        draw.rectangle([(0, H-120), (W, H)], fill=(0, 0, 0, 160))
+        try:
+            font_big   = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 64)
+            font_small = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 28)
+        except Exception:
+            font_big = font_small = ImageFont.load_default()
+        draw.text((W//2, H-80), "MOSH", font=font_big,   fill=(255,255,255,240), anchor="mm")
+        draw.text((W//2, H-30), "shisha & sweets", font=font_small, fill=(200,200,200,200), anchor="mm")
+        img = Image.alpha_composite(img, overlay)
+        buf = io.BytesIO()
+        img.convert("RGB").save(buf, format="JPEG", quality=85)
+        return buf.getvalue()
+    except Exception as e:
+        st.error(f"画像生成エラー: {e}")
+        return None
+
+def show_operations():
+    user = st.session_state.user
+    store = user.get("store", "") or ""
+    store_label = store if store else "MOSH"
+    st.markdown("### 📢 今日の営業")
+    op_tab1, op_tab2 = st.tabs(["🟢 オープン告知", "🌙 就業報告"])
+
+    with op_tab1:
+        st.markdown("**今日のおすすめフレーバーを入力してください**")
+        flavor_input = st.text_input("フレーバー",
+            placeholder="例：レモンミント、ピーチ、グレープ", key="ops_flavor")
+        col1, col2 = st.columns(2)
+        with col1:
+            gen_text = st.button("📝 告知文を生成", use_container_width=True, type="primary")
+        with col2:
+            gen_img = st.button("🎨 画像を生成", use_container_width=True, disabled=not HAS_OPENAI)
+        if gen_text and flavor_input:
+            with st.spinner("告知文を生成中..."):
+                text = generate_open_text(flavor_input, store_label)
+            st.session_state["ops_generated_text"] = text
+        if "ops_generated_text" in st.session_state:
+            st.markdown("**生成された告知文：**")
+            st.text_area("告知文", value=st.session_state["ops_generated_text"],
+                         height=150, key="ops_text_area")
+            st.caption("👆 長押し→全選択→コピーしてLINEに貼り付けてください")
+        if gen_img and flavor_input:
+            with st.spinner("画像を生成中...（30秒ほどかかります）"):
+                img_bytes = generate_flavor_image(flavor_input)
+            if img_bytes:
+                st.session_state["ops_generated_img"] = img_bytes
+        if "ops_generated_img" in st.session_state:
+            st.image(st.session_state["ops_generated_img"], use_column_width=True)
+            fname = flavor_input if "ops_flavor" in st.session_state else "flavor"
+            st.download_button("📥 画像をダウンロード",
+                data=st.session_state["ops_generated_img"],
+                file_name=f"mosh_{fname}_{date.today()}.jpg",
+                mime="image/jpeg", use_container_width=True)
+        if not HAS_OPENAI:
+            st.info("💡 画像生成にはOpenAI APIキーの設定が必要です")
+
+    with op_tab2:
+        st.markdown("**就業報告フォームに入力してください**")
+        today_str = date.today().strftime("%Y/%m/%d")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            new_count = st.number_input("新規来店", min_value=0, value=0, step=1, key="ops_new")
+        with col_b:
+            repeat_count = st.number_input("リピート来店", min_value=0, value=0, step=1, key="ops_repeat")
+        try:
+            all_customers = db.get_all_customers(store if store and store != "本部" else None)
+            customer_names = [c["name"] for c in all_customers if c.get("name")]
+        except Exception:
+            customer_names = []
+        selected_visitors = st.multiselect(
+            "来店者（顧客DBから選択）", options=customer_names,
+            key="ops_visitors_select", placeholder="名前を入力して検索...")
+        extra_visitors = st.text_area("DBにない来店者（1行1名）",
+            placeholder="新規のお客様など", height=80, key="ops_visitors_extra")
+        all_visitor_names = "\n".join(selected_visitors)
+        if extra_visitors.strip():
+            all_visitor_names += ("\n" if all_visitor_names else "") + extra_visitors.strip()
+        done_today    = st.text_area("今日やったこと（1行1項目）",
+            placeholder="・清掃\n・SNS投稿", height=100, key="ops_done")
+        todo_tomorrow = st.text_area("明日やってほしいこと（1行1項目）",
+            placeholder="・○○の補充", height=80, key="ops_todo")
+        notice        = st.text_area("連絡事項（営業の様子・気づき）",
+            placeholder="今日は○○でした", height=80, key="ops_notice")
+        register_diff = st.text_input("レジ締め過不足",
+            placeholder="0（不足の場合は -500 など）", key="ops_register")
+        if st.button("📋 就業報告を生成", type="primary", use_container_width=True):
+            flavor_for_report = st.session_state.get("ops_flavor", "")
+            report = generate_discord_report(
+                store_label, today_str, flavor_for_report,
+                int(new_count), int(repeat_count),
+                all_visitor_names, done_today, todo_tomorrow, notice, register_diff)
+            st.session_state["ops_report"] = report
+        if "ops_report" in st.session_state:
+            st.markdown("**生成された就業報告：**")
+            st.text_area("就業報告", value=st.session_state["ops_report"],
+                         height=400, key="ops_report_area")
+            st.caption("👆 長押し→全選択→コピーしてDiscordに貼り付けてください")
+
+# ─────────────────────────────────────────
 # メインルーティング
 # ─────────────────────────────────────────
 _invite_token = st.query_params.get("invite", None)
@@ -1141,16 +1358,20 @@ else:
     else:
         user = st.session_state.user
         if user["role"] == "owner":
-            tab_home, tab_dash, tab_users = st.tabs(["👥 顧客一覧", "📊 ダッシュボード", "⚙️ ユーザー管理"])
+            tab_home, tab_dash, tab_ops, tab_users = st.tabs(["👥 顧客一覧", "📊 ダッシュボード", "📢 今日の営業", "⚙️ ユーザー管理"])
             with tab_home:
                 show_home()
             with tab_dash:
                 show_dashboard()
+            with tab_ops:
+                show_operations()
             with tab_users:
                 show_user_management()
         else:
-            tab_home, tab_dash = st.tabs(["👥 顧客一覧", "📊 ダッシュボード"])
+            tab_home, tab_dash, tab_ops = st.tabs(["👥 顧客一覧", "📊 ダッシュボード", "📢 今日の営業"])
             with tab_home:
                 show_home()
             with tab_dash:
                 show_dashboard()
+            with tab_ops:
+                show_operations()
