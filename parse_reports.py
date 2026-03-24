@@ -116,8 +116,8 @@ def parse_visitor_names(text: str) -> list[dict]:
 
         is_new = '🆕' in line or clean.startswith('新規')
 
-        # カンマ・読点・中黒で分割
-        parts = re.split(r'[、,，・]', clean)
+        # カンマ・読点・中黒・「と」で分割（例: まことさんとしょうたさん → 2人に分離）
+        parts = re.split(r'[、,，・]|(?<=さん)と(?=\w)|(?<=くん)と(?=\w)|(?<=ちゃん)と(?=\w)', clean)
 
         for part in parts:
             part = part.strip()

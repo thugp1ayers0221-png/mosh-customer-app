@@ -748,42 +748,20 @@ def show_home():
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
     # ── 顧客カード一覧 ──
-    RANK_LABEL = {"V":"[V]","S":"[S]","A":"[A]","B":"[B]","C":"[C]"}
-
     for c in customers:
-        rank      = c.get("rank","A")
-        rank_tag  = RANK_LABEL.get(rank, "[A]")
         name      = c['name']
         store_lbl = c['primary_store'] or '未設定'
-        member_mark = " ✅" if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
-        cross_mark  = " ⚠️" if c["cross_store_flag"] else ""
-
-        this_m = c.get("visits_this_month") or 0
-        last_m = c.get("visits_last_month") or 0
-
-        try:
-            days_ago = (today - _date.fromisoformat(c["last_visit_date"] or "")).days
-            days_label = "今日" if days_ago==0 else ("昨日" if days_ago==1 else f"{days_ago}日前")
-        except:
-            days_label = "-"
-            days_ago = 999
-
-        if this_m > last_m > 0:    trend = f"  ↑+{this_m-last_m}"
-        elif this_m < last_m > 0:  trend = f"  ↓{this_m-last_m}"
-        elif this_m > 0 == last_m: trend = "  NEW"
-        else:                       trend = ""
-
-        line1 = f"{rank_tag} {name}{member_mark}{cross_mark}{trend}"
-        line2 = f"    {store_lbl}  今月{this_m}回  最終:{days_label}"
-        label = f"{line1}\n{line2}"
+        this_m    = c.get("visits_this_month") or 0
+        label     = f"{store_lbl}　{name}　今月{this_m}回"
 
         if st.button(label, key=f"open_{c['id']}", use_container_width=True):
-            st.session_state.selected_customer = c["id"]
-            st.session_state.page = "detail"
-            new_params = {"p": "detail", "id": str(c["id"])}
-            if st.session_state.login_token:
-                new_params["t"] = st.session_state.login_token
-            st.query_params.update(new_params)
+            with st.spinner("読み込み中..."):
+                st.session_state.selected_customer = c["id"]
+                st.session_state.page = "detail"
+                new_params = {"p": "detail", "id": str(c["id"])}
+                if st.session_state.login_token:
+                    new_params["t"] = st.session_state.login_token
+                st.query_params.update(new_params)
             st.rerun()
 
 # ─────────────────────────────────────────
