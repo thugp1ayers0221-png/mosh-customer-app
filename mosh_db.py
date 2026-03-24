@@ -557,3 +557,24 @@ def use_invitation(token: str):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("UPDATE invitations SET used=1 WHERE token=%s", (token,))
+
+
+def get_line_samples(store: str) -> list:
+    """店舗の告知文サンプルをDBから取得（キャッシュ用）"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT sample_text FROM line_samples WHERE store=%s ORDER BY id",
+                (store,)
+            )
+            rows = cur.fetchall()
+            return [r["sample_text"] for r in rows]
+
+
+def get_line_sample_stores() -> list:
+    """告知文サンプルが存在する店舗一覧を返す"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT store FROM line_samples ORDER BY store")
+            rows = cur.fetchall()
+            return [r["store"] for r in rows]

@@ -1165,25 +1165,37 @@ LINE_SAMPLES = """
 - メイソンズオープン！本日のおすすめは「ボムシェル×柑橘フルーツ」🍊ボムシェルのトロピカルな甘さに柑橘のさっぱり感が加わって、最高にバランスのいい組み合わせです。ご来店お待ちしております。
 """.strip()
 
-def generate_open_text(flavor: str, store: str) -> str:
+@st.cache_data(ttl=3600, show_spinner=False)
+def _cached_line_samples(store: str) -> str:
+    """店舗のサンプル告知文をキャッシュ付きで取得（1時間TTL）"""
+    try:
+        rows = db.get_line_samples(store)
+        if rows:
+            return "\n".join(f"- {t}" for t in rows)
+    except Exception:
+        pass
+    return LINE_SAMPLES
+
+def generate_open_text(flavor: str, style_store: str) -> str:
     if not HAS_ANTHROPIC:
         return f"オープンしました！本日のおすすめは{flavor}です！皆様のご来店心よりお待ちしております♪"
+    samples = _cached_line_samples(style_store)
     try:
         msg = _anthropic_client.messages.create(
             model="claude-haiku-20240307",
             max_tokens=350,
-            system=f"""あなたはシーシャバー「MOSH {store}」のスタッフです。
+            system=f"""あなたはシーシャバー「MOSH {style_store}」のスタッフです。
 毎日LINEオープンチャットにオープン告知を投稿します。
 
-【過去の投稿サンプル（このトーン・熱量を必ず参考に）】
-{LINE_SAMPLES}
+【{style_store}の過去の投稿サンプル（この文体・トーン・絵文字の使い方を必ず継承）】
+{samples}
 
 【必須ルール】
-- カジュアルで親しみやすい文体、絵文字を自然に使う
-- 構成：①オープンの一言 ②フレーバー名の紹介 ③そのフレーバーの味わい・香り・イメージを2〜3文で具体的に描写（ここが核心！） ④来店を促す一言
-- ③の味わい描写は必ず入れる。「ひと口吸うと〜」「〜な香りがふわっと」「〜をイメージした」などの表現で読む人が飲食しているような感覚になる文を書く
+- 上記サンプルの文体・出だし・絵文字パターンをそのまま継承する
+- 構成：①オープンの一言 ②フレーバー名 ③味わい・香り・イメージを2〜3文で具体的に描写（核心！） ④来店を促す一言
+- ③は必ず入れる。「ひと口吸うと〜」「〜な香りがふわっと」「〜をイメージした」などの表現で
 - 150〜200文字程度
-- 毎回語尾・絵文字・出だしを変えて新鮮に""",
+- 毎回出だし・語尾・絵文字を少し変えて新鮮に""",
             messages=[{"role": "user", "content": f"今日のおすすめフレーバー：{flavor}"}]
         )
         return msg.content[0].text.strip()
@@ -1280,6 +1292,21 @@ def show_operations():
         st.markdown("**今日のおすすめフレーバーを入力してください**")
         flavor_input = st.text_input("フレーバー",
             placeholder="例：レモンミント、ピーチ、グレープ", key="ops_flavor")
+
+        # 店舗スタイル選択
+        try:
+            style_stores = db.get_line_sample_stores()
+        except Exception:
+            style_stores = []
+        style_options = style_stores if style_stores else ["メイソンズ", "西船橋", "おおたか", "東村山", "柏"]
+        default_idx = style_options.index(store_label) if store_label in style_options else 0
+        selected_style = st.selectbox(
+            "📝 文体スタイル（どの店舗風で書きますか？）",
+            options=style_options,
+            index=default_idx,
+            key="ops_style"
+        )
+
         col1, col2 = st.columns(2)
         with col1:
             gen_text = st.button("📝 告知文を生成", use_container_width=True, type="primary")
@@ -1287,7 +1314,7 @@ def show_operations():
             gen_img = st.button("🎨 画像を生成", use_container_width=True, disabled=not HAS_OPENAI)
         if gen_text and flavor_input:
             with st.spinner("告知文を生成中..."):
-                text = generate_open_text(flavor_input, store_label)
+                text = generate_open_text(flavor_input, selected_style)
             st.session_state["ops_generated_text"] = text
         if "ops_generated_text" in st.session_state:
             st.markdown("**生成された告知文：**")
