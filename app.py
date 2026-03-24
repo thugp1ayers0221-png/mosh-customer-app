@@ -90,44 +90,91 @@ st.markdown("""
   font-weight: 500;
 }
 
-/* カード */
-.mosh-card {
+/* 検索バー */
+.search-wrap input {
+  font-size: 1rem !important;
+  border-radius: 12px !important;
+  border: 2px solid var(--mosh-sky) !important;
+  padding: 10px 16px !important;
+}
+
+/* カード（ランク色帯つき） */
+.customer-card {
   background: white;
   border-radius: 14px;
-  padding: 14px 16px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   box-shadow: 0 1px 6px rgba(106,66,38,0.08);
-  border-left: 4px solid var(--mosh-sky);
+  display: flex;
+  overflow: hidden;
   cursor: pointer;
-  transition: transform 0.1s, box-shadow 0.1s;
+  transition: box-shadow 0.15s;
 }
-.mosh-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(106,66,38,0.14);
+.customer-card:active { box-shadow: 0 2px 10px rgba(106,66,38,0.18); }
+.card-rank-bar {
+  width: 6px;
+  flex-shrink: 0;
 }
-.mosh-card-name {
-  font-size: 1.05rem;
-  font-weight: 600;
+.card-rank-bar.rank-V { background: #A855F7; }
+.card-rank-bar.rank-S { background: var(--rank-s); }
+.card-rank-bar.rank-A { background: var(--rank-a); }
+.card-rank-bar.rank-B { background: var(--rank-b); }
+.card-rank-bar.rank-C { background: var(--rank-c); }
+.card-body {
+  flex: 1;
+  padding: 10px 12px;
+  min-width: 0;
+}
+.card-row1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+.card-name {
+  font-size: 1.0rem;
+  font-weight: 700;
   color: var(--mosh-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.mosh-card-meta {
-  font-size: 0.78rem;
-  color: #888;
-  margin-top: 3px;
+.card-marks { font-size: 0.85rem; }
+.card-trend-up   { color: #16A34A; font-weight:700; font-size:0.82rem; margin-left:auto; }
+.card-trend-down { color: #DC2626; font-weight:700; font-size:0.82rem; margin-left:auto; }
+.card-trend-new  { color: #7C3AED; font-weight:700; font-size:0.82rem; margin-left:auto; }
+.card-trend-flat { color:#bbb; font-size:0.82rem; margin-left:auto; }
+.card-row2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.mosh-card-visits {
-  font-size: 1.4rem;
+.card-store {
+  font-size: 0.75rem;
+  color: #999;
+}
+.card-this-month {
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--mosh-brown);
-  float: right;
-  line-height: 1.2;
+  background: var(--mosh-cream);
+  padding: 1px 7px;
+  border-radius: 8px;
 }
-.mosh-card-visits span {
-  font-size: 0.7rem;
-  font-weight: 400;
-  display: block;
-  text-align: right;
+.card-days-ago {
+  font-size: 0.75rem;
   color: #aaa;
+  margin-left: auto;
+}
+.card-days-ago.recent { color: #16A34A; font-weight: 600; }
+
+/* カードの上に重なるボタンを透明化・負のmarginでカードに被せる */
+.customer-card + div > button {
+  opacity: 0 !important;
+  margin-top: -62px !important;
+  height: 62px !important;
+  position: relative;
+  z-index: 1;
+  cursor: pointer !important;
 }
 
 /* ランクバッジ */
@@ -483,49 +530,47 @@ def show_header():
 # ホーム（顧客一覧）
 # ─────────────────────────────────────────
 def show_home():
+    from datetime import date as _date
     user = st.session_state.user
+    today = _date.today()
 
-    # フィルター
-    stores = ["全店舗"] + db.get_stores()
+    # ── 検索バー（最上部・全幅）──
+    search = st.text_input(
+        "search", placeholder="🔍 名前で検索...",
+        label_visibility="collapsed",
+        key="home_search"
+    )
+
+    # ── フィルター（店舗・期間、コンパクト2列）──
+    stores  = ["全店舗"] + db.get_stores()
     periods = ["全期間"] + db.get_available_periods()
 
-    # 店長は自店舗固定（経営陣・オーナーは全店舗閲覧可）
     if user["role"] == "manager" and user.get("store"):
-        default_store = user["store"]
+        default_store  = user["store"]
         store_disabled = True
     else:
-        default_store = "全店舗"
+        default_store  = "全店舗"
         store_disabled = False
 
-    with st.container():
-        c1, c2, c3 = st.columns([2, 2, 2])
-        with c1:
-            sel_store = st.selectbox(
-                "店舗", stores,
-                index=stores.index(default_store) if default_store in stores else 0,
-                disabled=store_disabled,
-                label_visibility="collapsed",
-            )
-        with c2:
-            sel_period = st.selectbox(
-                "期間", periods,
-                label_visibility="collapsed",
-            )
-        with c3:
-            search = st.text_input(
-                "検索", placeholder="🔍 名前で検索",
-                label_visibility="collapsed",
-            )
+    fc1, fc2 = st.columns(2)
+    with fc1:
+        sel_store = st.selectbox(
+            "店舗", stores,
+            index=stores.index(default_store) if default_store in stores else 0,
+            disabled=store_disabled,
+            label_visibility="collapsed",
+        )
+    with fc2:
+        sel_period = st.selectbox(
+            "期間", periods,
+            label_visibility="collapsed",
+        )
 
     store_q  = None if sel_store == "全店舗" else sel_store
     period_q = None if sel_period == "全期間" else sel_period
-    search_q = search if search else None
+    search_q = search.strip() if search.strip() else None
 
-    customers = db.get_customers(
-        store=store_q,
-        period=period_q,
-        search=search_q,
-    )
+    customers = db.get_customers(store=store_q, period=period_q, search=search_q)
 
     # S候補の通知
     s_candidates = [c for c in customers if c["total_visits"] >= 10 and c["rank"] == "A"]
@@ -540,42 +585,69 @@ def show_home():
                         db.set_rank(c["id"], "S", user["username"])
                         st.rerun()
 
-    # 件数表示 + ランク凡例
-    period_str = f"{sel_period}" if sel_period != "全期間" else "全期間"
-    store_str  = sel_store
-    st.caption(f"{store_str} · {period_str} · {len(customers)}名　｜　ランク: [VIP]=Masons会員 [S]=10回以上 [A]=顔なじみ [B]=名前不明 [C]=新規")
+    # 件数表示
+    st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
-    # 一覧（カード全体をボタンに・トレンド表示付き）
+    # ── 顧客カード一覧 ──
+    RANK_COLORS = {"V":"#A855F7","S":"#C9A84C","A":"#7B5230","B":"#5B7FA6","C":"#9E9E9E"}
+
     for c in customers:
-        visits_n = c.get("period_visits") or c["total_visits"]
-        last_date = c["last_visit_date"] or "-"
-
-        rank = c.get("rank","A")
-        rank_badge = {"V":"[VIP]","S":"[S]","A":"[A]","B":"[B]","C":"[C]"}.get(rank, f"[{rank}]")
-        member_mark = " ✅" if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
+        rank       = c.get("rank","A")
+        bar_color  = RANK_COLORS.get(rank, "#9E9E9E")
+        name       = c['name']
+        store_lbl  = c['primary_store'] or '未設定'
+        member_mark = "✅ " if c["is_member"] and c["primary_store"]=="メイソンズ" else ""
         cross_mark  = " ⚠️" if c["cross_store_flag"] else ""
-        store_label = c['primary_store'] or '未設定'
 
-        # 前月比トレンド
+        # 今月来店回数
         this_m = c.get("visits_this_month") or 0
         last_m = c.get("visits_last_month") or 0
-        if this_m > last_m and last_m > 0:
-            trend = f"↑+{this_m - last_m}"
-        elif this_m < last_m and this_m > 0:
-            trend = f"↓{this_m - last_m}"
-        elif this_m > 0 and last_m == 0:
-            trend = "✨新"
-        else:
-            trend = ""
+        this_month_label = f"今月 {this_m}回" if this_m > 0 else "今月 0回"
 
-        btn_label = (
-            f"{rank_badge} **{c['name']}**{member_mark}{cross_mark}　{trend}\n"
-            f"{store_label}　最終: {last_date}　来店 **{visits_n}回**"
-        )
-        if st.button(btn_label, key=f"open_{c['id']}", use_container_width=True):
+        # 最終来店からの日数
+        last_date = c["last_visit_date"] or ""
+        try:
+            days_ago = (today - _date.fromisoformat(last_date)).days
+            if days_ago == 0:   days_label = "今日"
+            elif days_ago == 1: days_label = "昨日"
+            elif days_ago <= 7: days_label = f"{days_ago}日前"
+            else:               days_label = f"{days_ago}日前"
+            recent_cls = "recent" if days_ago <= 7 else ""
+        except:
+            days_label = "-"
+            recent_cls = ""
+
+        # 前月比トレンド
+        if this_m > last_m and last_m > 0:
+            trend_html = f'<span class="card-trend-up">↑+{this_m-last_m}</span>'
+        elif this_m < last_m and this_m > 0:
+            trend_html = f'<span class="card-trend-down">↓{this_m-last_m}</span>'
+        elif this_m > 0 and last_m == 0:
+            trend_html = '<span class="card-trend-new">✨新</span>'
+        else:
+            trend_html = ''
+
+        st.markdown(f"""
+        <div class="customer-card">
+          <div class="card-rank-bar" style="background:{bar_color};width:6px;flex-shrink:0;"></div>
+          <div class="card-body">
+            <div class="card-row1">
+              <span class="card-name">{member_mark}{name}{cross_mark}</span>
+              {trend_html}
+            </div>
+            <div class="card-row2">
+              <span class="card-store">{store_lbl}</span>
+              <span class="card-this-month">{this_month_label}</span>
+              <span class="card-days-ago {recent_cls}">{days_label}</span>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 透明ボタンでタップ判定
+        if st.button("　", key=f"open_{c['id']}", use_container_width=True):
             st.session_state.selected_customer = c["id"]
             st.session_state.page = "detail"
-            # URLを更新してブラウザ履歴に積む（戻るボタン対応）
             new_params = {"p": "detail", "id": str(c["id"])}
             if st.session_state.login_token:
                 new_params["t"] = st.session_state.login_token
@@ -593,8 +665,8 @@ def show_detail():
         st.error("顧客が見つかりません")
         return
 
-    # 戻るボタン（ブラウザ履歴もリセット）
-    if st.button("← 一覧に戻る"):
+    # 戻るボタン（ヘッダー直下・目立つ位置）
+    if st.button("← 顧客一覧に戻る", use_container_width=True):
         st.session_state.page = "home"
         st.session_state.selected_customer = None
         # URLからdetailパラメータを除去
