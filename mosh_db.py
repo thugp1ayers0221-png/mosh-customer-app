@@ -326,6 +326,49 @@ def get_stores():
             return [r['store'] for r in cur.fetchall()]
 
 
+def get_weekday_stats(store=None, period=None):
+    """
+    曜日別の平均来客数を返す
+    戻り値: [{"weekday": 0..6(月〜日), "label": "月", "avg_new": x, "avg_repeat": x, "avg_total": x}, ...]
+    """
+    WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"]
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            store_cond  = "AND store=%s"  if store  else ""
+            period_cond = "AND LEFT(date,7)=%s" if period else ""
+            params = [p for p in [store, period] if p]
+
+            # DOW: 0=日曜, 1=月曜...6=土曜 (PostgreSQL仕様)
+            # → 月曜始まりに変換: (DOW + 6) % 7  → 0=月,1=火,...,6=日
+            cur.execute(f"""
+                SELECT
+                    (EXTRACT(DOW FROM date::date)::int + 6) % 7 AS weekday_idx,
+                    AVG(new_count)             AS avg_new,
+                    AVG(repeat_unnamed_count)  AS avg_repeat,
+                    AVG(new_count + repeat_unnamed_count + repeat_named_count) AS avg_total,
+                    COUNT(*)                   AS days_count
+                FROM daily_summary
+                WHERE 1=1 {store_cond} {period_cond}
+                GROUP BY weekday_idx
+                ORDER BY weekday_idx
+            """, params)
+            rows = cur.fetchall()
+
+    result = []
+    data_map = {int(r["weekday_idx"]): r for r in rows}
+    for i, label in enumerate(WEEKDAY_LABELS):
+        r = data_map.get(i, {})
+        result.append({
+            "weekday": i,
+            "label": label,
+            "avg_new":    round(float(r["avg_new"]    or 0), 1),
+            "avg_repeat": round(float(r["avg_repeat"] or 0), 1),
+            "avg_total":  round(float(r["avg_total"]  or 0), 1),
+            "days_count": int(r["days_count"] or 0),
+        })
+    return result
+
+
 def set_rank(customer_id, rank, updated_by):
     with get_conn() as conn:
         with conn.cursor() as cur:

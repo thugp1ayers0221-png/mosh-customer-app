@@ -1220,6 +1220,59 @@ def show_dashboard():
             </div>
             """, unsafe_allow_html=True)
 
+    # ── 曜日別グラフ ──
+    st.markdown("#### 曜日別 平均来客数")
+    weekday_data = db.get_weekday_stats(store=store_q, period=period_q)
+    if weekday_data and any(d["avg_total"] > 0 for d in weekday_data):
+        labels  = [d["label"]     for d in weekday_data]
+        totals  = [d["avg_total"] for d in weekday_data]
+        news    = [d["avg_new"]   for d in weekday_data]
+        repeats = [d["avg_repeat"] for d in weekday_data]
+
+        # 最大値の曜日を強調
+        max_val = max(totals) if totals else 1
+        bar_colors = [
+            "#FF6B35" if v == max_val else "#A8D8EA"
+            for v in totals
+        ]
+
+        fig_wd = go.Figure()
+        fig_wd.add_trace(go.Bar(
+            x=labels,
+            y=totals,
+            marker_color=bar_colors,
+            text=[f"{v:.1f}" for v in totals],
+            textposition="outside",
+            textfont=dict(size=11, color="#4A3728"),
+            hovertemplate="<b>%{x}曜日</b><br>平均合計: %{y:.1f}人<extra></extra>",
+            name="合計",
+        ))
+        fig_wd.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(t=20, b=10, l=10, r=10),
+            height=220,
+            font=dict(family="Noto Sans JP", color="#4A3728", size=12),
+            xaxis=dict(showgrid=False, tickfont=dict(size=14, color="#4A3728")),
+            yaxis=dict(showgrid=True, gridcolor="#f0e8df", zeroline=False),
+            showlegend=False,
+        )
+        st.plotly_chart(fig_wd, use_container_width=True,
+                        config={"staticPlot": True, "displayModeBar": False})
+
+        # 強い曜日・弱い曜日のサマリー
+        sorted_days = sorted(weekday_data, key=lambda d: d["avg_total"], reverse=True)
+        if sorted_days[0]["avg_total"] > 0:
+            strong = sorted_days[0]
+            weak   = sorted_days[-1]
+            st.markdown(
+                f"<div style='font-size:0.8rem;color:#9E8B7D;text-align:center;'>"
+                f"💪 <b>強い曜日</b>: {strong['label']}曜日（平均 {strong['avg_total']:.1f}人）　"
+                f"📉 <b>弱い曜日</b>: {weak['label']}曜日（平均 {weak['avg_total']:.1f}人）"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
 # ─────────────────────────────────────────
 # ユーザー管理（オーナーのみ）
 # ─────────────────────────────────────────
