@@ -423,13 +423,19 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 [data-testid="baseButton-secondary"]:hover {
   filter: brightness(0.94) !important;
 }
-/* ランク別カラー S/Aのみ */
-.rank-s ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"],
-.rank-v ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
-  background-color: #FFF3CD !important; border: 2px solid #C8922A !important; color: #6B4226 !important;
+/* ランク別カラー - :has()で正確に対象指定 */
+div[data-testid="stMarkdown"]:has(.rank-s) + div[data-testid="stButton"] [data-testid="baseButton-secondary"],
+div[data-testid="stMarkdown"]:has(.rank-v) + div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+  background-color: #FFF3CD !important; border: 2px solid #C8922A !important;
+  border-left: 6px solid #C8922A !important; color: #6B4226 !important;
 }
-.rank-a ~ div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
-  background-color: #D6EEF8 !important; border: 2px solid #A8D8EA !important; color: #1A5F80 !important;
+div[data-testid="stMarkdown"]:has(.rank-a) + div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+  background-color: #D6EEF8 !important; border: 2px solid #A8D8EA !important;
+  border-left: 6px solid #4AA8D8 !important; color: #1A5F80 !important;
+}
+div[data-testid="stMarkdown"]:has(.rank-b) + div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+  background-color: #FAF5EE !important; border: 2px solid #c8b89a !important;
+  border-left: 6px solid #c8b89a !important; color: #6B4226 !important;
 }
 .stSelectbox > div > div,
 .stTextInput > div > div > input {
@@ -766,42 +772,41 @@ def show_home():
     # 件数表示
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
-    # ── 顧客カード一覧（st.markdown直接レンダリング・iframeなし・色分け確実）──
-    token = st.session_state.get("login_token", "") or ""
-    token_param = f"&t={token}" if token else ""
+    # ── 顧客カード一覧（st.button + :has() CSS で色分け）──
+    PAGE_SIZE = 50
+    if "customer_page" not in st.session_state:
+        st.session_state.customer_page = 1
+    # フィルター変更時にページリセット
+    filter_key = f"{store_q}_{period_q}_{search_q}"
+    if st.session_state.get("_last_filter") != filter_key:
+        st.session_state.customer_page = 1
+        st.session_state._last_filter = filter_key
 
-    rank_config = {
-        "V": {"bg": "#F3E8FF", "border": "#A855F7", "color": "#6B21A8", "bar": "#A855F7"},
-        "S": {"bg": "#FFF3CD", "border": "#C8922A", "color": "#6B4226", "bar": "#C8922A"},
-        "A": {"bg": "#D6EEF8", "border": "#A8D8EA", "color": "#1A5F80", "bar": "#4AA8D8"},
-        "B": {"bg": "#FAF5EE", "border": "#c8b89a", "color": "#6B4226", "bar": "#c8b89a"},
-        "C": {"bg": "#FAFAFA", "border": "#E5E7EB", "color": "#555555", "bar": "#AAAAAA"},
-    }
+    page = st.session_state.customer_page
+    shown = customers[: page * PAGE_SIZE]
 
-    cards_html = '<div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">'
-    for c in customers:
-        cid       = c['id']
-        name      = _html.escape(c['name'])
-        store_lbl = _html.escape(c['primary_store'] or '未設定')
+    for c in shown:
+        name      = c['name']
+        store_lbl = c['primary_store'] or '未設定'
         rank      = c.get("rank", "C")
         visit_cnt = (c.get("period_visits") or 0) if period_q else (c.get("visits_this_month") or 0)
-        rc        = rank_config.get(rank, rank_config["C"])
-        url       = f"https://mosh-customer-app.streamlit.app/?p=detail&id={cid}{token_param}"
+        label     = f"{name}\n{store_lbl}  ·  {visit_cnt}回"
 
-        cards_html += (
-            f'<a href="{url}" style="'
-            f'position:relative;display:flex;justify-content:space-between;align-items:center;'
-            f'padding:11px 14px 11px 20px;'
-            f'background:{rc["bg"]};border:2px solid {rc["border"]};color:{rc["color"]};'
-            f'border-radius:10px;text-decoration:none;overflow:hidden;">'
-            f'<div style="position:absolute;left:0;top:0;width:6px;height:100%;'
-            f'background:{rc["bar"]};border-radius:10px 0 0 10px;"></div>'
-            f'<span style="font-weight:600;font-size:0.95rem;">{name}</span>'
-            f'<span style="font-size:0.82rem;opacity:0.72;white-space:nowrap;">{store_lbl} · {visit_cnt}回</span>'
-            f'</a>'
-        )
-    cards_html += '</div>'
-    st.markdown(cards_html, unsafe_allow_html=True)
+        st.markdown(f'<div class="rank-{rank.lower()}"></div>', unsafe_allow_html=True)
+        if st.button(label, key=f"open_{c['id']}", use_container_width=True):
+            st.session_state.selected_customer = c["id"]
+            st.session_state.page = "detail"
+            new_params = {"p": "detail", "id": str(c["id"])}
+            if st.session_state.login_token:
+                new_params["t"] = st.session_state.login_token
+            st.query_params.update(new_params)
+            st.rerun()
+
+    if len(customers) > page * PAGE_SIZE:
+        remaining = len(customers) - page * PAGE_SIZE
+        if st.button(f"▼ もっと見る（残り {remaining} 名）", use_container_width=True):
+            st.session_state.customer_page += 1
+            st.rerun()
 
 # ─────────────────────────────────────────
 # 顧客詳細
