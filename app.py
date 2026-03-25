@@ -599,11 +599,52 @@ st.components.v1.html("""
   var token = getCookie('mosh_token');
   var win = window.parent || window;
   var params = new URLSearchParams(win.location.search);
+
   // cookieにトークンがあり、URLにまだ乗っていない場合だけリダイレクト
   if (token && !params.get('t')) {
     params.set('t', token);
     win.location.search = params.toString();
+    return;
   }
+
+  // ─── スクロール位置の復元 ───
+  // detail→homeに戻ってきたとき、保存済みスクロール位置を復元
+  var isDetail = params.get('p') === 'detail';
+  if (!isDetail) {
+    var savedScroll = sessionStorage.getItem('mosh_scroll_y');
+    if (savedScroll) {
+      // 少し遅延させてStreamlitのレンダリング完了後にスクロール
+      setTimeout(function() {
+        try {
+          (win.document.querySelector('.main') || win).scrollTo(0, parseInt(savedScroll));
+        } catch(e) {
+          win.scrollTo(0, parseInt(savedScroll));
+        }
+        sessionStorage.removeItem('mosh_scroll_y');
+      }, 400);
+    }
+    // detailページへの遷移前に現在位置を保存するリスナー
+    win.document.addEventListener('click', function(e) {
+      var btn = e.target && e.target.closest('button');
+      if (btn) {
+        // ボタンクリック時のスクロール位置を保存
+        try {
+          var scrollEl = win.document.querySelector('.main') || win;
+          sessionStorage.setItem('mosh_scroll_y', scrollEl.scrollTop || win.scrollY || 0);
+        } catch(ex) {}
+      }
+    }, true);
+  }
+
+  // ─── detailページ: replaceStateで余分な履歴エントリを削除 ───
+  // Streamlitが query_params.update() + rerun() で2回historyをプッシュする問題を解消
+  if (isDetail) {
+    // 現在のURLで履歴を上書き（pushStateではなくreplaceState）
+    try {
+      win.history.replaceState(null, '', win.location.href);
+    } catch(e) {}
+  }
+
   // スマホ戻るボタン: popstateでリロード
   win.addEventListener('popstate', function(e) {
     win.location.reload();
