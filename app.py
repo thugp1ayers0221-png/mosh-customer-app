@@ -1382,8 +1382,9 @@ STORE_INFO = {
         "phone": "08078120226",
     },
     "メイソンズ": {
-        "weekday_open": "19:00", "weekend_open": "19:00",  # 全日同じ
-        "close": "29:00", "last_entry": "26:00",
+        "weekday_open": "19:00",  # 月〜土
+        "close": "29:00", "last_entry": "26:00",  # 月〜土
+        "sunday_close": "24:00", "sunday_last_entry": "22:45",  # 日曜のみ
         "phone": "08021099722",
     },
 }
@@ -1395,25 +1396,33 @@ def get_store_footer(store_name: str) -> str:
     if not info:
         return ""
     today = _date.today()
-    is_weekend = today.weekday() >= 5  # 土=5, 日=6
+    is_sunday = today.weekday() == 6
+    is_saturday = today.weekday() == 5
     try:
         import jpholiday
         is_holiday = bool(jpholiday.is_holiday(today))
     except ImportError:
         is_holiday = False
-    open_time = info["weekend_open"] if (is_weekend or is_holiday) else info["weekday_open"]
-    close_time = info["close"]
     phone = info["phone"]
     if store_name == "メイソンズ":
+        # 日曜のみ短縮営業
+        if is_sunday:
+            close_time = info["sunday_close"]
+            last_entry = info["sunday_last_entry"]
+        else:
+            close_time = info["close"]
+            last_entry = info["last_entry"]
         lines = [
             "本日もご来店お待ちしております！",
-            f"{open_time}~{close_time}",
-            f"⚠️最終入店{info['last_entry']}",
+            f"19:00~{close_time}",
+            f"⚠️最終入店{last_entry}",
             phone,
             "※15分以上返事がない場合はお手数ですがお電話にてお問い合わせください☎",
             "※ご予約の際は📢にあります予約フォーマットをご活用くださいませ！",
         ]
     else:
+        open_time = info["weekend_open"] if (is_saturday or is_sunday or is_holiday) else info["weekday_open"]
+        lines = [
         lines = [
             "本日もご来店お待ちしております！",
             f"{open_time}-{close_time}",
