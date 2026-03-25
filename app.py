@@ -789,7 +789,7 @@ def show_home():
         url       = f"?p=detail&id={cid}{token_param}"
 
         cards_inner += f'''
-        <a class="mosh-card" href="javascript:void(0)" data-url="{url}"
+        <a class="mosh-card" href="{url}" target="_parent"
            style="background:{rc['bg']};border:2px solid {rc['border']};color:{rc['color']};">
           <div class="rank-bar" style="background:{rc['bar']};"></div>
           <span class="card-name">{name}</span>
@@ -844,7 +844,6 @@ body {{ background: transparent; padding: 2px 0; }}
 document.querySelectorAll('.mosh-card').forEach(function(el) {{
   el.addEventListener('click', function() {{
     document.getElementById('overlay').classList.add('show');
-    (window.parent || window).location.href = el.getAttribute('data-url');
   }});
 }});
 </script>
