@@ -207,7 +207,7 @@ def get_customers(store=None, period=None, rank=None, search=None,
                 base += " AND (c.name LIKE %s OR c.aliases LIKE %s)"
                 params += [f"%{search}%", f"%{search}%"]
 
-            base += " GROUP BY c.id ORDER BY visits_this_month DESC, period_visits DESC, c.total_visits DESC LIMIT %s"
+            base += " GROUP BY c.id ORDER BY period_visits DESC, c.total_visits DESC LIMIT %s"
             params.append(limit)
 
             cur.execute(base, params)

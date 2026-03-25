@@ -12,6 +12,7 @@ import string
 import io
 import base64
 import os
+import html as _html
 import mosh_db as db
 
 # MOSHロゴをbase64エンコード
@@ -765,26 +766,94 @@ def show_home():
     # 件数表示
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
-    # ── 顧客カード一覧 ──
+    # ── 顧客カード一覧（HTML一括レンダリング・色分け・クリックフィードバック付き）──
+    token = st.session_state.get("login_token", "") or ""
+    token_param = f"&t={token}" if token else ""
+
+    rank_config = {
+        "V": {"bg": "#F3E8FF", "border": "#A855F7", "color": "#6B21A8", "bar": "#A855F7"},
+        "S": {"bg": "#FFF3CD", "border": "#C8922A", "color": "#6B4226", "bar": "#C8922A"},
+        "A": {"bg": "#D6EEF8", "border": "#A8D8EA", "color": "#1A5F80", "bar": "#4AA8D8"},
+        "B": {"bg": "#FAF5EE", "border": "#c8b89a", "color": "#6B4226", "bar": "#c8b89a"},
+        "C": {"bg": "#FAFAFA", "border": "#E5E7EB", "color": "#555555", "bar": "#AAAAAA"},
+    }
+
+    cards_inner = ""
     for c in customers:
-        name      = c['name']
-        store_lbl = c['primary_store'] or '未設定'
-        rank      = c.get("rank", "A")
+        cid       = c['id']
+        name      = _html.escape(c['name'])
+        store_lbl = _html.escape(c['primary_store'] or '未設定')
+        rank      = c.get("rank", "C")
         visit_cnt = (c.get("period_visits") or 0) if period_q else (c.get("visits_this_month") or 0)
-        label     = f"{name}\n{store_lbl}  ·  {visit_cnt}回"
+        rc        = rank_config.get(rank, rank_config["C"])
+        url       = f"?p=detail&id={cid}{token_param}"
 
-        # ランクマーカー（直後のボタンをCSSで色付けするためのマーカー）
-        st.markdown(f'<div class="rank-{rank.lower()}"></div>', unsafe_allow_html=True)
+        cards_inner += f'''
+        <a class="mosh-card" href="javascript:void(0)" data-url="{url}"
+           style="background:{rc['bg']};border:2px solid {rc['border']};color:{rc['color']};">
+          <div class="rank-bar" style="background:{rc['bar']};"></div>
+          <span class="card-name">{name}</span>
+          <span class="card-sub">{store_lbl} · {visit_cnt}回</span>
+        </a>'''
 
-        if st.button(label, key=f"open_{c['id']}", use_container_width=True):
-            with st.spinner("読み込み中..."):
-                st.session_state.selected_customer = c["id"]
-                st.session_state.page = "detail"
-                new_params = {"p": "detail", "id": str(c["id"])}
-                if st.session_state.login_token:
-                    new_params["t"] = st.session_state.login_token
-                st.query_params.update(new_params)
-            st.rerun()
+    component_html = f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+* {{ box-sizing: border-box; margin: 0; padding: 0; font-family: "Noto Sans JP", "Hiragino Sans", sans-serif; }}
+body {{ background: transparent; padding: 2px 0; }}
+.cards {{ display: flex; flex-direction: column; gap: 6px; }}
+.mosh-card {{
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 11px 14px 11px 20px;
+  border-radius: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}}
+.mosh-card:active {{ transform: scale(0.98); box-shadow: inset 0 2px 6px rgba(0,0,0,0.1); }}
+.rank-bar {{
+  position: absolute; left: 0; top: 0;
+  width: 6px; height: 100%;
+  border-radius: 10px 0 0 10px;
+}}
+.card-name {{ font-weight: 600; font-size: 0.95rem; }}
+.card-sub  {{ font-size: 0.82rem; opacity: 0.72; white-space: nowrap; }}
+#overlay {{
+  display: none; position: fixed; inset: 0;
+  background: rgba(255,255,255,0.75);
+  z-index: 999; align-items: center; justify-content: center;
+  flex-direction: column; gap: 10px;
+  font-size: 1rem; color: #C8922A; font-weight: 600;
+}}
+#overlay.show {{ display: flex; }}
+.spinner {{
+  width: 28px; height: 28px; border: 3px solid #f0e0c0;
+  border-top-color: #C8922A; border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}}
+@keyframes spin {{ to {{ transform: rotate(360deg); }} }}
+</style>
+</head><body>
+<div id="overlay"><div class="spinner"></div>読み込み中...</div>
+<div class="cards">{cards_inner}</div>
+<script>
+document.querySelectorAll('.mosh-card').forEach(function(el) {{
+  el.addEventListener('click', function() {{
+    document.getElementById('overlay').classList.add('show');
+    setTimeout(function() {{
+      (window.parent || window).location.href = el.getAttribute('data-url');
+    }}, 80);
+  }});
+}});
+</script>
+</body></html>'''
+
+    card_height = max(200, len(customers) * 58 + 20)
+    st.components.v1.html(component_html, height=card_height, scrolling=False)
 
 # ─────────────────────────────────────────
 # 顧客詳細
@@ -1167,7 +1236,7 @@ def show_user_management():
         st.caption(f"権限: {role_jp}　店舗: {store_str}　← このURLをLINE/Discordで送ってください")
 
 # ─────────────────────────────────────────
-# 今日の営業（告知文・就業報告生成）
+# 今日の営業（告知文・終業報告生成）
 # ─────────────────────────────────────────
 LINE_SAMPLES = """
 - open💭💫 こんばんは、ﾐｷです。本日のおすすめは「チェリースカイ」チェリーを使ったカクテルミックスです🍸🍒 フルーティで甘酸っぱい香りがふわっと広がって、気分がぱっと明るくなる一本！ぜひ試してみてください🫧
@@ -1292,7 +1361,7 @@ def show_operations():
     store = user.get("store", "") or ""
     store_label = store if store else "MOSH"
     st.markdown("### 📢 今日の営業")
-    op_tab1, op_tab2 = st.tabs(["🟢 オープン告知", "🌙 就業報告"])
+    op_tab1, op_tab2 = st.tabs(["🟢 オープン告知", "🌙 終業報告"])
 
     with op_tab1:
         st.markdown("**今日のおすすめフレーバーを入力してください**")
@@ -1343,7 +1412,7 @@ def show_operations():
             st.info("💡 画像生成にはOpenAI APIキーの設定が必要です")
 
     with op_tab2:
-        st.markdown("**就業報告フォームに入力してください**")
+        st.markdown("**終業報告フォームに入力してください**")
         today_str = date.today().strftime("%Y/%m/%d")
         col_a, col_b = st.columns(2)
         with col_a:
@@ -1408,7 +1477,7 @@ def show_operations():
             placeholder="今日は○○でした", height=80, key="ops_notice")
         register_diff = st.text_input("レジ締め過不足",
             placeholder="0（不足の場合は -500 など）", key="ops_register")
-        if st.button("📋 就業報告を生成", type="primary", use_container_width=True):
+        if st.button("📋 終業報告を生成", type="primary", use_container_width=True):
             flavor_for_report = st.session_state.get("ops_flavor", "")
             report = generate_discord_report(
                 store_label, today_str, flavor_for_report,
@@ -1416,8 +1485,8 @@ def show_operations():
                 all_visitor_names, done_today, todo_tomorrow, notice, register_diff)
             st.session_state["ops_report"] = report
         if "ops_report" in st.session_state:
-            st.markdown("**生成された就業報告：**")
-            st.text_area("就業報告", value=st.session_state["ops_report"],
+            st.markdown("**生成された終業報告：**")
+            st.text_area("終業報告", value=st.session_state["ops_report"],
                          height=400, key="ops_report_area")
             st.caption("👆 長押し→全選択→コピーしてDiscordに貼り付けてください")
 
