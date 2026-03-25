@@ -63,8 +63,8 @@ if "db_migrated" not in st.session_state:
 
 # キャッシュ付き顧客取得（30秒TTL）
 @st.cache_data(ttl=30, show_spinner=False)
-def cached_get_customers(store=None, period=None, rank=None, search=None):
-    return db.get_customers(store=store, period=period, rank=rank, search=search)
+def cached_get_customers(store=None, period=None, rank=None, search=None, limit=200):
+    return db.get_customers(store=store, period=period, rank=rank, search=search, limit=limit)
 
 # ─────────────────────────────────────────
 # MOSHブランドCSS（スマホ対応）
@@ -744,12 +744,13 @@ def show_home():
     customers = cached_get_customers(store=store_q, period=period_q, search=search_q)
 
     # 来店ログ0件は非表示（検索時は除く）
-    if not search_q:
-        visit_field = "period_visits" if period_q else "visits_this_month"
-        customers = [c for c in customers if (c.get(visit_field) or 0) > 0]
+    # 期間指定あり → その期間に来店した人のみ表示
+    # 期間指定なし（全期間）→ 全員表示（total_visits > 0 は全員該当）
+    if not search_q and period_q:
+        customers = [c for c in customers if (c.get("period_visits") or 0) > 0]
 
-    # S候補の通知
-    all_customers_for_s = cached_get_customers()
+    # S候補の通知（全顧客から検索）
+    all_customers_for_s = cached_get_customers(limit=9999)
     s_candidates = [c for c in all_customers_for_s if c["total_visits"] >= 10 and c["rank"] == "A"]
     if s_candidates and user["role"] in ("owner","manager","executive"):
         with st.expander(f"⚠️ Sランク候補 {len(s_candidates)}名（来店10回以上・未昇格）"):
@@ -789,7 +790,8 @@ def show_home():
         name      = c['name']
         store_lbl = c['primary_store'] or '未設定'
         rank      = c.get("rank", "C")
-        visit_cnt = (c.get("period_visits") or 0) if period_q else (c.get("visits_this_month") or 0)
+        # 期間指定あり → その期間の来店数、なし（全期間）→ 累計来店数
+        visit_cnt = (c.get("period_visits") or 0) if period_q else (c.get("total_visits") or 0)
         label     = f"{name}\n{store_lbl}  ·  {visit_cnt}回"
 
         st.markdown(f'<div class="rank-{rank.lower()}"></div>', unsafe_allow_html=True)
