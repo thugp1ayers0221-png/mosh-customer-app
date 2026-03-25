@@ -15,7 +15,6 @@ import os
 import html as _html
 import importlib
 import mosh_db as db
-importlib.reload(db)  # Streamlit Cloudのモジュールキャッシュ対策
 
 # MOSHロゴをbase64エンコード
 _logo_b64 = ""
@@ -63,10 +62,26 @@ if "db_migrated" not in st.session_state:
     except Exception:
         pass
 
-# キャッシュ付き顧客取得（30秒TTL）
+# ─── キャッシュ付きDB取得 ───
 @st.cache_data(ttl=30, show_spinner=False)
 def cached_get_customers(store=None, period=None, rank=None, search=None, limit=200):
     return db.get_customers(store=store, period=period, rank=rank, search=search, limit=limit)
+
+@st.cache_data(ttl=300, show_spinner=False)
+def cached_get_stores():
+    return db.get_stores()
+
+@st.cache_data(ttl=300, show_spinner=False)
+def cached_get_available_periods():
+    return db.get_available_periods()
+
+@st.cache_data(ttl=60, show_spinner=False)
+def cached_get_dashboard_stats(store=None, period=None):
+    return db.get_dashboard_stats(store=store, period=period)
+
+@st.cache_data(ttl=300, show_spinner=False)
+def cached_get_weekday_stats(store=None, period=None):
+    return db.get_weekday_stats(store=store, period=period)
 
 # ─────────────────────────────────────────
 # MOSHブランドCSS（スマホ対応）
@@ -756,8 +771,8 @@ def show_home():
     )
 
     # ── フィルター（店舗・期間、コンパクト2列）──
-    stores  = ["全店舗"] + db.get_stores()
-    periods = ["全期間"] + db.get_available_periods()
+    stores  = ["全店舗"] + cached_get_stores()
+    periods = ["全期間"] + cached_get_available_periods()
 
     if user["role"] == "manager" and user.get("store"):
         default_store  = user["store"]
@@ -901,7 +916,7 @@ def show_detail():
         """, unsafe_allow_html=True)
 
         with st.expander("同一人物マージ"):
-            stores = db.get_stores()
+            stores = cached_get_stores()
             other_stores = [s for s in stores if s != c["primary_store"]]
             if other_stores:
                 sel = st.selectbox("対象店舗", other_stores)
@@ -1086,8 +1101,8 @@ def show_detail():
 # ─────────────────────────────────────────
 def show_dashboard():
     user = st.session_state.user
-    stores = ["全店舗"] + db.get_stores()
-    periods = ["全期間"] + db.get_available_periods()
+    stores = ["全店舗"] + cached_get_stores()
+    periods = ["全期間"] + cached_get_available_periods()
 
     if user["role"] == "manager" and user.get("store") and user["store"] != "本部":
         default_store = user["store"]
@@ -1108,7 +1123,7 @@ def show_dashboard():
     store_q  = None if sel_store == "全店舗" else sel_store
     period_q = None if sel_period == "全期間" else sel_period
 
-    stats = db.get_dashboard_stats(store=store_q, period=period_q)
+    stats = cached_get_dashboard_stats(store=store_q, period=period_q)
     s = stats.get("summary", {})
     r = stats.get("rank_counts", {})
 
@@ -1178,8 +1193,8 @@ def show_dashboard():
             "メイソンズ":"#333333",  # 黒
             "西船橋":   "#FF6B35",  # オレンジ
         }
-        for store in db.get_stores():
-            st_stats = db.get_dashboard_stats(store=store, period=period_q)
+        for store in cached_get_stores():
+            st_stats = cached_get_dashboard_stats(store=store, period=period_q)
             ss = st_stats.get("summary", {})
             new_c  = ss.get("new_total", 0)
             rep_b  = ss.get("repeat_b", 0)
@@ -1224,7 +1239,7 @@ def show_dashboard():
 
     # ── 曜日別グラフ ──
     st.markdown("#### 曜日別 平均来客数")
-    weekday_data = db.get_weekday_stats(store=store_q, period=period_q)
+    weekday_data = cached_get_weekday_stats(store=store_q, period=period_q)
     if weekday_data and any(d["avg_total"] > 0 for d in weekday_data):
         labels  = [d["label"]     for d in weekday_data]
         totals  = [d["avg_total"] for d in weekday_data]
