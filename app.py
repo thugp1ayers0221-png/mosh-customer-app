@@ -1088,10 +1088,10 @@ def show_dashboard():
 
     # ランク分布パイチャート
     rank_data = {
-        "S（超常連）":       r.get("S",0) + r.get("V",0),
+        "S（超常連）":        r.get("S",0) + r.get("V",0),
         "A（名前ありリピーター）": r.get("A",0),
-        "リピーター":        s.get("repeat_b",0),
-        "新規":             s.get("new_total",0),
+        "B（リピーター）":    s.get("repeat_b",0),
+        "C（新規）":         s.get("new_total",0),
     }
     rank_data = {k:v for k,v in rank_data.items() if v > 0}
 
@@ -1124,18 +1124,52 @@ def show_dashboard():
     # 店舗別来店サマリー（全店舗選択時）
     if not store_q:
         st.markdown("#### 店舗別サマリー")
+        # 店舗ごとのアクセントカラー
+        store_colors = {
+            "柏":       "#FF8C69",  # コーラル
+            "東村山":   "#52D68A",  # ミントグリーン
+            "おおたか": "#4FB8F0",  # スカイブルー
+            "メイソンズ":"#C084FC",  # パープル
+            "西船橋":   "#FFB800",  # ゴールド
+        }
         for store in db.get_stores():
             st_stats = db.get_dashboard_stats(store=store, period=period_q)
             ss = st_stats.get("summary", {})
-            total = (ss.get("new_total",0) + ss.get("repeat_b",0) +
-                     ss.get("repeat_a",0) + ss.get("cafe_total",0))
+            new_c  = ss.get("new_total", 0)
+            rep_b  = ss.get("repeat_b", 0)
+            rep_a  = ss.get("repeat_a", 0)
+            total  = new_c + rep_b + rep_a + ss.get("cafe_total", 0)
+            color  = store_colors.get(store, "#A8D8EA")
             st.markdown(f"""
-            <div class="mosh-card">
-              <div class="mosh-card-name">{store}</div>
-              <div class="mosh-card-meta">
-                新規 {ss.get('new_total',0)}名 ·
-                リピ {ss.get('repeat_b',0)+ss.get('repeat_a',0)}名 ·
-                合計 {total}名
+            <div style="
+              background:#fff;
+              border:1px solid #e8ddd4;
+              border-left:5px solid {color};
+              border-radius:10px;
+              padding:14px 18px;
+              margin-bottom:10px;
+              box-shadow:0 1px 4px rgba(106,66,38,0.07);
+            ">
+              <div style="font-size:1.05rem;font-weight:700;color:#4A3728;margin-bottom:8px;">
+                🏪 {store}
+              </div>
+              <div style="display:flex;gap:20px;flex-wrap:wrap;">
+                <div style="text-align:center;min-width:60px;">
+                  <div style="font-size:1.3rem;font-weight:700;color:#FF8C69;">{new_c}</div>
+                  <div style="font-size:0.72rem;color:#9E8B7D;">C（新規）</div>
+                </div>
+                <div style="text-align:center;min-width:60px;">
+                  <div style="font-size:1.3rem;font-weight:700;color:#4FB8F0;">{rep_b}</div>
+                  <div style="font-size:0.72rem;color:#9E8B7D;">B（リピーター）</div>
+                </div>
+                <div style="text-align:center;min-width:60px;">
+                  <div style="font-size:1.3rem;font-weight:700;color:#52D68A;">{rep_a}</div>
+                  <div style="font-size:0.72rem;color:#9E8B7D;">A（名前あり）</div>
+                </div>
+                <div style="text-align:center;min-width:60px;margin-left:auto;padding-left:16px;border-left:1px solid #e8ddd4;">
+                  <div style="font-size:1.4rem;font-weight:800;color:#4A3728;">{total}</div>
+                  <div style="font-size:0.72rem;color:#9E8B7D;">合計</div>
+                </div>
               </div>
             </div>
             """, unsafe_allow_html=True)
