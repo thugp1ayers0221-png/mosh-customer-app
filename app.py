@@ -1359,32 +1359,32 @@ def show_user_management():
 # 今日の営業（告知文・終業報告生成）
 # ─────────────────────────────────────────
 
-# 店舗別営業情報（電話番号は確定次第更新）
+# 店舗別営業情報
 STORE_INFO = {
     "柏": {
         "weekday_open": "14:00", "weekend_open": "12:00",
         "close": "24:00", "shisha_lo": "22:45", "drink_lo": "23:30",
-        "phone": "00000000000",  # TODO: 要更新
+        "phone": "08089910031",
     },
     "東村山": {
         "weekday_open": "14:00", "weekend_open": "12:00",
         "close": "24:00", "shisha_lo": "22:45", "drink_lo": "23:30",
-        "phone": "00000000000",  # TODO: 要更新
+        "phone": "07089449770",
     },
     "おおたか": {
         "weekday_open": "14:00", "weekend_open": "12:00",
         "close": "24:00", "shisha_lo": "22:45", "drink_lo": "23:30",
-        "phone": "00000000000",  # TODO: 要更新
+        "phone": "0471999850",
     },
     "西船橋": {
         "weekday_open": "14:00", "weekend_open": "14:00",  # 全日同じ
         "close": "24:00", "shisha_lo": "22:45", "drink_lo": "23:30",
-        "phone": "00000000000",  # TODO: 要更新
+        "phone": "08078120226",
     },
     "メイソンズ": {
         "weekday_open": "19:00", "weekend_open": "19:00",  # 全日同じ
         "close": "29:00", "last_entry": "26:00",
-        "phone": "00000000000",  # TODO: 要更新
+        "phone": "08021099722",
     },
 }
 
