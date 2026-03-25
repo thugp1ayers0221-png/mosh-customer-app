@@ -63,25 +63,30 @@ if "db_migrated" not in st.session_state:
         pass
 
 # ─── キャッシュ付きDB取得 ───
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def cached_get_customers(store=None, period=None, rank=None, search=None, limit=200):
     return db.get_customers(store=store, period=period, rank=rank, search=search, limit=limit)
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def cached_get_stores():
     return db.get_stores()
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def cached_get_available_periods():
     return db.get_available_periods()
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def cached_get_dashboard_stats(store=None, period=None):
     return db.get_dashboard_stats(store=store, period=period)
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def cached_get_weekday_stats(store=None, period=None):
     return db.get_weekday_stats(store=store, period=period)
+
+@st.cache_data(ttl=300, show_spinner=False)
+def cached_get_all_stores_stats(period=None):
+    """全店舗統計を1クエリで取得（ダッシュボード高速化）"""
+    return db.get_all_stores_stats(period=period)
 
 # ─────────────────────────────────────────
 # MOSHブランドCSS（スマホ対応）
@@ -1193,9 +1198,10 @@ def show_dashboard():
             "メイソンズ":"#333333",  # 黒
             "西船橋":   "#FF6B35",  # オレンジ
         }
+        # 全店舗を1クエリで取得（N+1解消）
+        all_stores_data = cached_get_all_stores_stats(period=period_q)
         for store in cached_get_stores():
-            st_stats = cached_get_dashboard_stats(store=store, period=period_q)
-            ss = st_stats.get("summary", {})
+            ss = all_stores_data.get(store, {})
             new_c  = ss.get("new_total", 0)
             rep_b  = ss.get("repeat_b", 0)
             rep_a  = ss.get("repeat_a", 0)

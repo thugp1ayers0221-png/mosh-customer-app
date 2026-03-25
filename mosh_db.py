@@ -326,6 +326,30 @@ def get_stores():
             return [r['store'] for r in cur.fetchall()]
 
 
+def get_all_stores_stats(period=None):
+    """全店舗の集計を1クエリで取得（ダッシュボード高速化: N往復→1往復）"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            period_cond = "AND LEFT(date,7)=%s" if period else ""
+            params = [period] if period else []
+            cur.execute(f"""
+                SELECT
+                    store,
+                    SUM(new_count)              AS new_total,
+                    SUM(repeat_unnamed_count)   AS repeat_b,
+                    SUM(repeat_named_count)     AS repeat_a,
+                    SUM(cafe_count)             AS cafe_total,
+                    COUNT(DISTINCT date)        AS days
+                FROM daily_summary
+                WHERE 1=1 {period_cond}
+                GROUP BY store
+                ORDER BY store
+            """, params)
+            rows = cur.fetchall()
+    return {r['store']: {k: (v if v is not None else 0) for k, v in dict(r).items()}
+            for r in rows}
+
+
 def get_weekday_stats(store=None, period=None):
     """
     曜日別の平均来客数を返す
