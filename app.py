@@ -844,9 +844,7 @@ body {{ background: transparent; padding: 2px 0; }}
 document.querySelectorAll('.mosh-card').forEach(function(el) {{
   el.addEventListener('click', function() {{
     document.getElementById('overlay').classList.add('show');
-    setTimeout(function() {{
-      (window.parent || window).location.href = el.getAttribute('data-url');
-    }}, 80);
+    (window.parent || window).location.href = el.getAttribute('data-url');
   }});
 }});
 </script>
