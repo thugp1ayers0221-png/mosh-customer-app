@@ -423,17 +423,17 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 [data-testid="baseButton-secondary"]:hover {
   filter: brightness(0.94) !important;
 }
-/* ランク別カラー - :has()で正確に対象指定 */
-div[data-testid="stMarkdown"]:has(.rank-s) + div[data-testid="stButton"] [data-testid="baseButton-secondary"],
-div[data-testid="stMarkdown"]:has(.rank-v) + div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+/* ランク別カラー - stElementContainerレベルで:has()を使用（DOM構造確認済み）*/
+div[data-testid="stElementContainer"]:has(.rank-s) + div[data-testid="stElementContainer"] button,
+div[data-testid="stElementContainer"]:has(.rank-v) + div[data-testid="stElementContainer"] button {
   background-color: #FFF3CD !important; border: 2px solid #C8922A !important;
   border-left: 6px solid #C8922A !important; color: #6B4226 !important;
 }
-div[data-testid="stMarkdown"]:has(.rank-a) + div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+div[data-testid="stElementContainer"]:has(.rank-a) + div[data-testid="stElementContainer"] button {
   background-color: #D6EEF8 !important; border: 2px solid #A8D8EA !important;
   border-left: 6px solid #4AA8D8 !important; color: #1A5F80 !important;
 }
-div[data-testid="stMarkdown"]:has(.rank-b) + div[data-testid="stButton"] [data-testid="baseButton-secondary"] {
+div[data-testid="stElementContainer"]:has(.rank-b) + div[data-testid="stElementContainer"] button {
   background-color: #FAF5EE !important; border: 2px solid #c8b89a !important;
   border-left: 6px solid #c8b89a !important; color: #6B4226 !important;
 }
