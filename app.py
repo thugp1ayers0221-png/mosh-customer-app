@@ -1130,37 +1130,37 @@ def show_dashboard():
     st.write("")
 
     # ランク分布パイチャート
-    rank_data = {
-        "S（超常連）":        r.get("S",0) + r.get("V",0),
-        "A（名前ありリピーター）": r.get("A",0),
-        "B（リピーター）":    s.get("repeat_b",0),
-        "C（新規）":         s.get("new_total",0),
+    # ラベル → (表示名, 色)
+    rank_color_map = {
+        "S": ("#FFB800", r.get("S",0) + r.get("V",0)),
+        "A": ("#4FB8F0", r.get("A",0)),
+        "B": ("#52D68A", s.get("repeat_b",0)),
+        "C": ("#FF8C69", s.get("new_total",0)),
     }
-    rank_data = {k:v for k,v in rank_data.items() if v > 0}
+    rank_labels  = [k for k, (_, v) in rank_color_map.items() if v > 0]
+    rank_values  = [v for _, (_, v) in rank_color_map.items() if v > 0]
+    rank_colors  = [c for _, (c, v) in rank_color_map.items() if v > 0]
 
-    if rank_data:
+    if rank_labels:
         fig = go.Figure(go.Pie(
-            labels=list(rank_data.keys()),
-            values=list(rank_data.values()),
+            labels=rank_labels,
+            values=rank_values,
             hole=0.45,
-            # S=ゴールド / A=スカイブルー / リピーター=ミントグリーン / 新規=コーラルオレンジ
-            marker_colors=["#FFB800","#4FB8F0","#52D68A","#FF8C69"],
             marker=dict(
-                colors=["#FFB800","#4FB8F0","#52D68A","#FF8C69"],
+                colors=rank_colors,
                 line=dict(color="#FFFFFF", width=2)
             ),
             textinfo="label+percent",
-            textfont_size=11,
+            textfont_size=13,
         ))
         fig.update_layout(
             title=f"ランク分布 — {sel_store} {sel_period}",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=50,b=10,l=10,r=10),
-            height=320,
+            height=300,
             font=dict(family="Noto Sans JP", color="#4A3728"),
-            showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
+            showlegend=False,
         )
         st.plotly_chart(fig, use_container_width=True,
                         config={"staticPlot": True, "displayModeBar": False})
@@ -1193,26 +1193,28 @@ def show_dashboard():
               padding:14px 18px;
               margin-bottom:10px;
               box-shadow:0 1px 4px rgba(106,66,38,0.07);
+              width:100%;
+              box-sizing:border-box;
             ">
               <div style="font-size:1.05rem;font-weight:700;color:#4A3728;margin-bottom:8px;">
                 🏪 {store}
               </div>
-              <div style="display:flex;gap:20px;flex-wrap:wrap;">
-                <div style="text-align:center;min-width:60px;">
-                  <div style="font-size:1.3rem;font-weight:700;color:#FF8C69;">{new_c}</div>
-                  <div style="font-size:0.72rem;color:#9E8B7D;">C（新規）</div>
+              <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:flex-start;">
+                <div style="text-align:center;flex:1;min-width:0;">
+                  <div style="font-size:1.2rem;font-weight:700;color:#FF8C69;">{new_c}</div>
+                  <div style="font-size:0.68rem;color:#9E8B7D;">C 新規</div>
                 </div>
-                <div style="text-align:center;min-width:60px;">
-                  <div style="font-size:1.3rem;font-weight:700;color:#4FB8F0;">{rep_b}</div>
-                  <div style="font-size:0.72rem;color:#9E8B7D;">B（リピーター）</div>
+                <div style="text-align:center;flex:1;min-width:0;">
+                  <div style="font-size:1.2rem;font-weight:700;color:#4FB8F0;">{rep_b}</div>
+                  <div style="font-size:0.68rem;color:#9E8B7D;">B リピーター</div>
                 </div>
-                <div style="text-align:center;min-width:60px;">
-                  <div style="font-size:1.3rem;font-weight:700;color:#52D68A;">{rep_a}</div>
-                  <div style="font-size:0.72rem;color:#9E8B7D;">A（名前あり）</div>
+                <div style="text-align:center;flex:1;min-width:0;">
+                  <div style="font-size:1.2rem;font-weight:700;color:#52D68A;">{rep_a}</div>
+                  <div style="font-size:0.68rem;color:#9E8B7D;">A 名前あり</div>
                 </div>
-                <div style="text-align:center;min-width:60px;margin-left:auto;padding-left:16px;border-left:1px solid #e8ddd4;">
-                  <div style="font-size:1.4rem;font-weight:800;color:#4A3728;">{total}</div>
-                  <div style="font-size:0.72rem;color:#9E8B7D;">合計</div>
+                <div style="text-align:center;flex:1;min-width:0;padding-left:8px;border-left:1px solid #e8ddd4;">
+                  <div style="font-size:1.3rem;font-weight:800;color:#4A3728;">{total}</div>
+                  <div style="font-size:0.68rem;color:#9E8B7D;">合計</div>
                 </div>
               </div>
             </div>
