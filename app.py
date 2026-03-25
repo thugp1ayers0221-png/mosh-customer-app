@@ -1553,41 +1553,44 @@ def generate_flavor_image(flavor: str):
     if not HAS_OPENAI:
         return None
     try:
-        # Claude HaikuでフレーバーごとのビジュアルコンテキストをAIに決めさせる
-        background_desc = f"lush outdoor garden with {flavor}-themed scenery"
-        ingredients_desc = f"fresh {flavor} ingredients, ice cubes"
-        color_desc = "vibrant, fresh"
+        # Claude HaikuでFLAVOR_INGREDIENTSとBACKGROUND_SCENEを決定
+        flavor_ingredients = f"fresh {flavor} ingredients, sliced fruits, ice cubes"
+        background_scene = f"lush outdoor garden with {flavor}-themed natural scenery"
         if HAS_ANTHROPIC:
             v = _anthropic_client.messages.create(
                 model="claude-haiku-4-5",
                 max_tokens=120,
                 system="""You are an art director for premium shisha product photography.
-Given a shisha flavor name, respond in this exact format (English only):
-BACKGROUND: [outdoor natural setting matching the flavor, e.g. "sunlit lemon grove with green trees"]
-INGREDIENTS: [specific visual ingredients to feature, e.g. "sliced lemons, fresh mint sprigs, ice cubes, honey jar"]
-COLORS: [dominant color palette, e.g. "bright yellow-green, fresh white"]""",
+Given a shisha flavor name, respond in this exact format (English only, be specific and visual):
+FLAVOR_INGREDIENTS: [what fills the glass bowl AND is on the flat-lay, e.g. "sliced lemons, fresh mint sprigs, ice cubes, honey jar, lemon zest"]
+BACKGROUND_SCENE: [outdoor natural environment matching the flavor, e.g. "sunlit lemon grove with lush green trees and dappled light"]""",
                 messages=[{"role": "user", "content": f"Flavor: {flavor}"}]
             )
             result = v.content[0].text.strip()
             for line in result.splitlines():
-                if line.startswith("BACKGROUND:"):
-                    background_desc = line.replace("BACKGROUND:", "").strip()
-                elif line.startswith("INGREDIENTS:"):
-                    ingredients_desc = line.replace("INGREDIENTS:", "").strip()
-                elif line.startswith("COLORS:"):
-                    color_desc = line.replace("COLORS:", "").strip()
+                if line.startswith("FLAVOR_INGREDIENTS:"):
+                    flavor_ingredients = line.replace("FLAVOR_INGREDIENTS:", "").strip()
+                elif line.startswith("BACKGROUND_SCENE:"):
+                    background_scene = line.replace("BACKGROUND_SCENE:", "").strip()
 
         prompt = (
-            f"Ultra-realistic premium hookah (shisha) commercial product photography. "
-            f"Central subject: an elegant chrome and glass hookah pipe with a clear glass base. "
-            f"The glass base is visibly filled with {ingredients_desc} inside. "
-            f"Artfully arranged around the hookah on a wooden surface: generous amounts of {ingredients_desc}, "
-            f"crushed ice, small glass bowls, a decorative drink glass. "
-            f"Background: {background_desc}, soft natural bokeh, bright daylight. "
-            f"Color palette: {color_desc}. "
-            f"Style: professional commercial food and beverage photography, "
-            f"vibrant saturated colors, sharp foreground with blurred background, "
-            f"top-tier advertising quality. No text overlays."
+            f"A premium shisha hookah product photo with stunning sizzle appeal. "
+            f"A polished chrome and glass hookah sits center-right, its transparent "
+            f"glass bowl filled with {flavor_ingredients}, ice cubes, and fresh "
+            f"ingredients. Soft white smoke rises elegantly from the top. "
+            f"On the left side, a lush flat-lay arrangement of the same fresh "
+            f"ingredients — sliced fruits, fresh herbs, ice cubes, a small honey "
+            f"jar — scattered on a rustic wooden board with glistening water droplets. "
+            f"One or two glass tumblers filled with fruit-infused water sit among them. "
+            f"Background: {background_scene}, soft natural bokeh lighting. "
+            f"The entire scene is lit with warm golden sunlight from slightly behind, "
+            f"creating a luminous, fresh, and premium atmosphere. "
+            f"No text. No labels. No logos. Photorealistic, ultra-high detail, "
+            f"commercial food photography style, shallow depth of field, "
+            f"vibrant yet natural colors, moisture and freshness emphasized. "
+            f"Dramatic swirling smoke with backlight, volumetric light rays. "
+            f"Shot with Canon EOS R5, 85mm lens, f/1.8 aperture, "
+            f"natural diffused light with reflector fill."
         )
         response = _openai_client.images.generate(
             model="dall-e-3", prompt=prompt,
