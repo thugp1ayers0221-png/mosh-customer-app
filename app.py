@@ -1423,7 +1423,6 @@ def get_store_footer(store_name: str) -> str:
     else:
         open_time = info["weekend_open"] if (is_saturday or is_sunday or is_holiday) else info["weekday_open"]
         lines = [
-        lines = [
             "本日もご来店お待ちしております！",
             f"{open_time}-{close_time}",
             f"SHISHA LO：{info['shisha_lo']}",
