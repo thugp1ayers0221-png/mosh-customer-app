@@ -766,7 +766,7 @@ def show_home():
     # 件数表示
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
-    # ── 顧客カード一覧（HTML一括レンダリング・色分け・クリックフィードバック付き）──
+    # ── 顧客カード一覧（st.markdown直接レンダリング・iframeなし・色分け確実）──
     token = st.session_state.get("login_token", "") or ""
     token_param = f"&t={token}" if token else ""
 
@@ -778,7 +778,7 @@ def show_home():
         "C": {"bg": "#FAFAFA", "border": "#E5E7EB", "color": "#555555", "bar": "#AAAAAA"},
     }
 
-    cards_inner = ""
+    cards_html = '<div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">'
     for c in customers:
         cid       = c['id']
         name      = _html.escape(c['name'])
@@ -788,69 +788,20 @@ def show_home():
         rc        = rank_config.get(rank, rank_config["C"])
         url       = f"?p=detail&id={cid}{token_param}"
 
-        cards_inner += f'''
-        <a class="mosh-card" href="{url}" target="_parent"
-           style="background:{rc['bg']};border:2px solid {rc['border']};color:{rc['color']};">
-          <div class="rank-bar" style="background:{rc['bar']};"></div>
-          <span class="card-name">{name}</span>
-          <span class="card-sub">{store_lbl} · {visit_cnt}回</span>
-        </a>'''
-
-    component_html = f'''<!DOCTYPE html>
-<html><head><meta charset="utf-8">
-<style>
-* {{ box-sizing: border-box; margin: 0; padding: 0; font-family: "Noto Sans JP", "Hiragino Sans", sans-serif; }}
-body {{ background: transparent; padding: 2px 0; }}
-.cards {{ display: flex; flex-direction: column; gap: 6px; }}
-.mosh-card {{
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 11px 14px 11px 20px;
-  border-radius: 10px;
-  text-decoration: none;
-  cursor: pointer;
-  overflow: hidden;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
-}}
-.mosh-card:active {{ transform: scale(0.98); box-shadow: inset 0 2px 6px rgba(0,0,0,0.1); }}
-.rank-bar {{
-  position: absolute; left: 0; top: 0;
-  width: 6px; height: 100%;
-  border-radius: 10px 0 0 10px;
-}}
-.card-name {{ font-weight: 600; font-size: 0.95rem; }}
-.card-sub  {{ font-size: 0.82rem; opacity: 0.72; white-space: nowrap; }}
-#overlay {{
-  display: none; position: fixed; inset: 0;
-  background: rgba(255,255,255,0.75);
-  z-index: 999; align-items: center; justify-content: center;
-  flex-direction: column; gap: 10px;
-  font-size: 1rem; color: #C8922A; font-weight: 600;
-}}
-#overlay.show {{ display: flex; }}
-.spinner {{
-  width: 28px; height: 28px; border: 3px solid #f0e0c0;
-  border-top-color: #C8922A; border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}}
-@keyframes spin {{ to {{ transform: rotate(360deg); }} }}
-</style>
-</head><body>
-<div id="overlay"><div class="spinner"></div>読み込み中...</div>
-<div class="cards">{cards_inner}</div>
-<script>
-document.querySelectorAll('.mosh-card').forEach(function(el) {{
-  el.addEventListener('click', function() {{
-    document.getElementById('overlay').classList.add('show');
-  }});
-}});
-</script>
-</body></html>'''
-
-    card_height = max(200, len(customers) * 58 + 20)
-    st.components.v1.html(component_html, height=card_height, scrolling=False)
+        cards_html += (
+            f'<a href="{url}" style="'
+            f'position:relative;display:flex;justify-content:space-between;align-items:center;'
+            f'padding:11px 14px 11px 20px;'
+            f'background:{rc["bg"]};border:2px solid {rc["border"]};color:{rc["color"]};'
+            f'border-radius:10px;text-decoration:none;overflow:hidden;">'
+            f'<div style="position:absolute;left:0;top:0;width:6px;height:100%;'
+            f'background:{rc["bar"]};border-radius:10px 0 0 10px;"></div>'
+            f'<span style="font-weight:600;font-size:0.95rem;">{name}</span>'
+            f'<span style="font-size:0.82rem;opacity:0.72;white-space:nowrap;">{store_lbl} · {visit_cnt}回</span>'
+            f'</a>'
+        )
+    cards_html += '</div>'
+    st.markdown(cards_html, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────
 # 顧客詳細
