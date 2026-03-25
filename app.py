@@ -1365,6 +1365,35 @@ LINE_SAMPLES = """
 - メイソンズオープン！本日のおすすめは「ボムシェル×柑橘フルーツ」🍊ボムシェルのトロピカルな甘さに柑橘のさっぱり感が加わって、最高にバランスのいい組み合わせです。ご来店お待ちしております。
 """.strip()
 
+# 店舗別フォールバックサンプル（DBにデータがない場合に使用）
+_STORE_FALLBACK_SAMPLES = {
+    "メイソンズ": """
+- メイソンズオープン！本日のおすすめは「ボムシェル×柑橘フルーツ」🍊ボムシェルのトロピカルな甘さに柑橘のさっぱり感が加わって、最高にバランスのいい組み合わせです。ご来店お待ちしております。
+- open💭💫 こんばんはMIKIです✨本日のおすすめは「チェリースカイ」🍒チェリーを使ったカクテルミックスです。フルーティで甘酸っぱい香りがふわっと広がって気分がぱっと明るくなる一本！ぜひ🫧
+- Open💭💫 本日のおすすめは「🦋ユリシス🦋」宝石のように鮮やかな蒼い羽を持った蝶をイメージしたミックス。清涼感のある爽やかなブルーベリーの香りと、ほんのり甘いフルーツが絶妙にマッチ✨
+""".strip(),
+    "柏": """
+- 柏店オープンしました🫧本日のおすすめは「{flavor}」です！ぜひ遊びに来てください。お待ちしております🙌
+- こんばんは〜！柏MOSHです🌙今日のイチオシフレーバーをご紹介します✨ひと口吸うと…広がる香りをぜひ体感してください！
+- 柏店、本日もオープン！スタッフ一同お待ちしています🔥今日のおすすめフレーバーは必見です。ぜひお気軽にお立ち寄りください☕
+""".strip(),
+    "東村山": """
+- 東村山オープン！本日もスタッフ一同お待ちしております🫧今日のおすすめをぜひ試してみてください✨
+- こんばんは！東村山MOSHです🌙本日のイチオシフレーバー、ぜひ体験しにきてください🔥
+- 東村山店オープンしました〜！今日も居心地よい空間でお待ちしてます。おすすめフレーバーについてはぜひ直接聞いてください😊
+""".strip(),
+    "おおたか": """
+- おおたかの森店オープン！本日もシーシャを楽しみに来てください🫧おすすめフレーバーは必見です✨
+- こんばんは、おおたかMOSHです🌙今日のイチオシをご紹介します！ひと口で気分が上がる一本です🔥ぜひ。
+- おおたか店、本日もオープンしました！ゆったりとした時間をぜひMOSHで。スタッフ一同お待ちしてます🙌
+""".strip(),
+    "西船橋": """
+- 西船橋オープン！本日もご来店お待ちしております🫧今日のおすすめフレーバーもぜひ✨
+- こんばんは！西船橋MOSHです🌙本日のイチオシ、ぜひ体験しに来てください😊スタッフ一同お待ちしてます。
+- 西船橋店オープンしました！今日も居心地のよい空間でのんびりシーシャを楽しんでいただけます🔥お気軽にどうぞ。
+""".strip(),
+}
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def _cached_line_samples(store: str) -> str:
     """店舗のサンプル告知文をキャッシュ付きで取得（1時間TTL）"""
@@ -1374,7 +1403,8 @@ def _cached_line_samples(store: str) -> str:
             return "\n".join(f"- {t}" for t in rows)
     except Exception:
         pass
-    return LINE_SAMPLES
+    # 店舗別フォールバック → 共通フォールバックの順
+    return _STORE_FALLBACK_SAMPLES.get(store, LINE_SAMPLES)
 
 def generate_open_text(flavor: str, style_store: str) -> str:
     if not HAS_ANTHROPIC:
@@ -1418,38 +1448,38 @@ def generate_discord_report(store: str, date_str: str, flavor: str,
                              register_diff: str) -> str:
     total = new_count + repeat_count
     lines = [
-        f"> **終業報告** {date_str}",
-        f">",
-        f"> 【今日やったこと】",
+        f"**終業報告** {date_str}",
+        f"",
+        f"【今日やったこと】",
     ]
     for item in done_today.strip().splitlines():
         if item.strip():
-            lines.append(f"> ・{item.strip()}")
-    lines += [f">", f"> 【明日やってほしいこと】"]
+            lines.append(f"・{item.strip()}")
+    lines += [f"", f"【明日やってほしいこと】"]
     for item in todo_tomorrow.strip().splitlines():
         if item.strip():
-            lines.append(f"> ・{item.strip()}")
+            lines.append(f"・{item.strip()}")
     lines += [
-        f">",
-        f"> 【来店人数】",
-        f"> 新規　　　{new_count}名",
-        f"> リピ　　　{repeat_count}名",
-        f"> ￣￣￣￣￣￣￣￣￣￣￣￣￣",
-        f"> 計　　　　{total}名",
-        f">",
-        f"> 【来店者記録】",
+        f"",
+        f"【来店人数】",
+        f"新規　　　{new_count}名",
+        f"リピ　　　{repeat_count}名",
+        f"￣￣￣￣￣￣￣￣￣￣￣￣￣",
+        f"計　　　　{total}名",
+        f"",
+        f"【来店者記録】",
     ]
-    for name in visitor_names.strip().splitlines():
-        if name.strip():
-            lines.append(f"> {name.strip()}")
+    names_line = "、".join(n.strip() for n in visitor_names.strip().splitlines() if n.strip())
+    if names_line:
+        lines.append(names_line)
     lines += [
-        f">",
-        f"> 【連絡事項】",
-        f"> ①営業の様子",
-        f"> {notice.strip()}",
-        f">",
-        f"> 【レジ締め過不足】",
-        f"> ¥{register_diff}",
+        f"",
+        f"【連絡事項】",
+        f"①営業の様子",
+        f"{notice.strip()}",
+        f"",
+        f"【レジ締め過不足】",
+        f"¥{register_diff}",
     ]
     return "\n".join(lines)
 
@@ -1530,7 +1560,17 @@ def show_operations():
             st.info("💡 画像生成にはOpenAI APIキーの設定が必要です")
 
     with op_tab2:
-        st.markdown("**終業報告フォームに入力してください**")
+        col_title, col_clear_all = st.columns([3, 1])
+        with col_title:
+            st.markdown("**終業報告フォームに入力してください**")
+        with col_clear_all:
+            if st.button("🗑 全部クリア", key="ops_clear_all", use_container_width=True):
+                for k in ["ops_new", "ops_repeat", "ops_visitor_list", "ops_visitor_search",
+                          "ops_done", "ops_todo", "ops_notice", "ops_register", "ops_report",
+                          "ops_report_area", "ops_generated_text"]:
+                    st.session_state.pop(k, None)
+                st.session_state.ops_visitor_list = []
+                st.rerun()
         today_str = date.today().strftime("%Y/%m/%d")
         col_a, col_b = st.columns(2)
         with col_a:
@@ -1604,9 +1644,8 @@ def show_operations():
             st.session_state["ops_report"] = report
         if "ops_report" in st.session_state:
             st.markdown("**生成された終業報告：**")
-            st.text_area("終業報告", value=st.session_state["ops_report"],
-                         height=400, key="ops_report_area")
-            st.caption("👆 長押し→全選択→コピーしてDiscordに貼り付けてください")
+            st.code(st.session_state["ops_report"], language=None)
+            st.caption("↑ 右上の📋アイコンをタップしてDiscordに貼り付けてください")
 
 # ─────────────────────────────────────────
 # メインルーティング

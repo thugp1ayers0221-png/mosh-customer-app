@@ -146,6 +146,14 @@ def migrate_db():
                         expires_at TIMESTAMP DEFAULT NOW() + INTERVAL '30 days'
                     )
                 """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS line_samples (
+                        id SERIAL PRIMARY KEY,
+                        store TEXT NOT NULL,
+                        sample_text TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
 
                 # インデックス
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_visits_customer ON visits(customer_id)")
