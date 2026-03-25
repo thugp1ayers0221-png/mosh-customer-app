@@ -342,7 +342,7 @@ def get_weekday_stats(store=None, period=None):
             # → 月曜始まりに変換: (DOW + 6) % 7  → 0=月,1=火,...,6=日
             cur.execute(f"""
                 SELECT
-                    (EXTRACT(DOW FROM date::date)::int + 6) % 7 AS weekday_idx,
+                    (EXTRACT(DOW FROM date::date)::int + 6) %% 7 AS weekday_idx,
                     AVG(new_count)             AS avg_new,
                     AVG(repeat_unnamed_count)  AS avg_repeat,
                     AVG(new_count + repeat_unnamed_count + repeat_named_count) AS avg_total,
