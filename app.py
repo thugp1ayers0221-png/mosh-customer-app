@@ -1170,11 +1170,11 @@ def show_dashboard():
         st.markdown("#### 店舗別サマリー")
         # 店舗ごとのアクセントカラー
         store_colors = {
-            "柏":       "#FF8C69",  # コーラル
-            "東村山":   "#52D68A",  # ミントグリーン
-            "おおたか": "#4FB8F0",  # スカイブルー
-            "メイソンズ":"#C084FC",  # パープル
-            "西船橋":   "#FFB800",  # ゴールド
+            "柏":       "#5BC8F5",  # 水色
+            "東村山":   "#2D7A4F",  # 深めの緑
+            "おおたか": "#9BC53D",  # 黄緑
+            "メイソンズ":"#333333",  # 黒
+            "西船橋":   "#FF6B35",  # オレンジ
         }
         for store in db.get_stores():
             st_stats = db.get_dashboard_stats(store=store, period=period_q)
