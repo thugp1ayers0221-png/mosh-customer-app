@@ -822,6 +822,7 @@ def show_home():
                 if st.button(f"🚀 {len(s_candidates)}名を全員Sに一括昇格", type="primary", use_container_width=True):
                     for c in s_candidates:
                         db.set_rank(c["id"], "S", user["username"])
+                    st.cache_data.clear()
                     st.success(f"{len(s_candidates)}名をSランクに昇格しました")
                     st.rerun()
             for c in s_candidates[:5]:
@@ -831,6 +832,7 @@ def show_home():
                 with col2:
                     if st.button("S昇格", key=f"promote_{c['id']}"):
                         db.set_rank(c["id"], "S", user["username"])
+                        st.cache_data.clear()
                         st.rerun()
 
     # 件数表示
