@@ -1100,17 +1100,24 @@ def show_dashboard():
             labels=list(rank_data.keys()),
             values=list(rank_data.values()),
             hole=0.45,
-            marker_colors=["#C9A84C","#7B5230","#5B7FA6","#9E9E9E"],
+            # S=ゴールド / A=スカイブルー / リピーター=ミントグリーン / 新規=コーラルオレンジ
+            marker_colors=["#FFB800","#4FB8F0","#52D68A","#FF8C69"],
+            marker=dict(
+                colors=["#FFB800","#4FB8F0","#52D68A","#FF8C69"],
+                line=dict(color="#FFFFFF", width=2)
+            ),
             textinfo="label+percent",
             textfont_size=11,
         ))
         fig.update_layout(
             title=f"ランク分布 — {sel_store} {sel_period}",
             paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=50,b=10,l=10,r=10),
-            height=300,
-            font=dict(family="Noto Sans JP"),
-            showlegend=False,
+            height=320,
+            font=dict(family="Noto Sans JP", color="#4A3728"),
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
         )
         st.plotly_chart(fig, use_container_width=True)
 
