@@ -1633,10 +1633,11 @@ def show_operations():
             with st.spinner("告知文を生成中..."):
                 text = generate_open_text(flavor_input, selected_style)
             st.session_state["ops_generated_text"] = text
+            # key="ops_text_area" が既にsession_stateにあるとvalueが無視されるため、両方更新する
+            st.session_state["ops_text_area"] = text
         if "ops_generated_text" in st.session_state:
             st.markdown("**生成された告知文：**")
-            st.text_area("告知文", value=st.session_state["ops_generated_text"],
-                         height=150, key="ops_text_area")
+            st.text_area("告知文", height=150, key="ops_text_area")
             st.caption("👆 長押し→全選択→コピーしてLINEに貼り付けてください")
         if gen_img and flavor_input:
             with st.spinner("画像を生成中...（30秒ほどかかります）"):
