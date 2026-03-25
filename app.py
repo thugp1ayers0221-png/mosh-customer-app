@@ -1448,33 +1448,59 @@ ANNOUNCE_STYLES = {
     },
 }
 
+# スタイル別バリエーションヒント（スタイルの特徴を壊さないように各スタイルに合わせたヒントのみ）
+_STYLE_VARIATION_HINTS = {
+    "スタイル1：情景描写・概念型": [
+        "フレーバーに詩的な名前をつけて【】で括る",
+        "自然・宇宙・夢の中のようなイメージで情景を描く",
+        "「うっとり」「夢みたいな」「想像しただけで」などの表現を使う",
+    ],
+    "スタイル2：シチュエーション・季節型": [
+        "今日の天気・気圧・気温から入ってフレーバーとつなぐ",
+        "「〜な日にぴったり」「〜な人へ」でシチュエーションと結ぶ",
+        "季節のキーワード（春/雨/暑い/寒い）を自然に入れる",
+    ],
+    "スタイル3：カジュアル素直型": [
+        "「オープンです！」から始めてスタッフの本音を素直に伝える",
+        "「ガチでおすすめ」「ほんとに最高」など飾らない感情表現を使う",
+        "短い一文のあとに「！！」で気持ちを強調する",
+    ],
+    "スタイル4：フレーバー構成詳細型": [
+        "「〜をベースに〜を加えた」で構成を丁寧に説明する",
+        "フレーバー名を「×」や「+」でつないで組み合わせを示す",
+        "どんな味・香りか具体的に、シンプルに描写する",
+    ],
+    "スタイル5：エピソード・ストーリー型": [
+        "今日の日付・季節・記念日・出来事を冒頭に入れる",
+        "エピソードからフレーバーへ「だからこそ」「だから今日は」でつなぐ",
+        "「先取り」「最終日」「はじめて」など特別感のある言葉を使う",
+    ],
+}
+
 def generate_open_text(flavor: str, style_key: str) -> str:
     if not HAS_ANTHROPIC:
         return "⚠️ AI機能が無効です（ANTHROPIC_API_KEY未設定）"
     style = ANNOUNCE_STYLES.get(style_key, list(ANNOUNCE_STYLES.values())[0])
     import random as _random
-    variation_hints = [
-        "出だしは天気・季節の話題から入る",
-        "出だしはオープンの一言からシンプルに始める",
-        "出だしは今日の気分・気持ちを表す言葉から",
-        "出だしはフレーバー名を最初に出す",
-        "出だしはお客さんへの呼びかけから始める",
-    ]
-    hint = _random.choice(variation_hints)
+    hints_for_style = _STYLE_VARIATION_HINTS.get(style_key, [])
+    hint = _random.choice(hints_for_style) if hints_for_style else ""
+    hint_line = f"\n今回のバリエーション指示：{hint}" if hint else ""
     try:
         msg = _anthropic_client.messages.create(
             model="claude-haiku-4-5",
             max_tokens=350,
+            temperature=1.0,
             system=f"""あなたはシーシャバー「MOSH」のスタッフです。
 毎日LINEオープンチャットにオープン告知を投稿します。
 
-【選択されたスタイル：{style['label']}】
+【今回のスタイル：{style['label']}】
 {style['prompt']}
+
+⚠️ 必ず上記スタイルの特徴を守ること。他スタイルの書き方は混ぜない。
 
 【共通ルール】
 - 150〜200文字程度
-- フレーバーの香り・味・イメージを具体的に表現する
-- 今回のバリエーション指示：{hint}""",
+- フレーバーの香り・味・イメージを具体的に表現する{hint_line}""",
             messages=[{"role": "user", "content": f"今日のおすすめフレーバー：{flavor}"}]
         )
         return msg.content[0].text.strip()
@@ -1527,14 +1553,41 @@ def generate_flavor_image(flavor: str):
     if not HAS_OPENAI:
         return None
     try:
+        # Claude HaikuでフレーバーごとのビジュアルコンテキストをAIに決めさせる
+        background_desc = f"lush outdoor garden with {flavor}-themed scenery"
+        ingredients_desc = f"fresh {flavor} ingredients, ice cubes"
+        color_desc = "vibrant, fresh"
+        if HAS_ANTHROPIC:
+            v = _anthropic_client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=120,
+                system="""You are an art director for premium shisha product photography.
+Given a shisha flavor name, respond in this exact format (English only):
+BACKGROUND: [outdoor natural setting matching the flavor, e.g. "sunlit lemon grove with green trees"]
+INGREDIENTS: [specific visual ingredients to feature, e.g. "sliced lemons, fresh mint sprigs, ice cubes, honey jar"]
+COLORS: [dominant color palette, e.g. "bright yellow-green, fresh white"]""",
+                messages=[{"role": "user", "content": f"Flavor: {flavor}"}]
+            )
+            result = v.content[0].text.strip()
+            for line in result.splitlines():
+                if line.startswith("BACKGROUND:"):
+                    background_desc = line.replace("BACKGROUND:", "").strip()
+                elif line.startswith("INGREDIENTS:"):
+                    ingredients_desc = line.replace("INGREDIENTS:", "").strip()
+                elif line.startswith("COLORS:"):
+                    color_desc = line.replace("COLORS:", "").strip()
+
         prompt = (
-            f"A cozy Japanese shisha lounge at night, dark ambient lighting, "
-            f"elegant hookah pipe on a low table with soft smoke rising. "
-            f"The scene is themed around {flavor} — only {flavor}-related visual elements "
-            f"(ingredients, colors, textures) are present as decoration. "
-            f"NO random fruits or ingredients unrelated to {flavor}. "
-            f"Atmospheric, moody, makes you want to taste {flavor}. "
-            f"Cinematic photography style, Instagram-worthy."
+            f"Ultra-realistic premium hookah (shisha) commercial product photography. "
+            f"Central subject: an elegant chrome and glass hookah pipe with a clear glass base. "
+            f"The glass base is visibly filled with {ingredients_desc} inside. "
+            f"Artfully arranged around the hookah on a wooden surface: generous amounts of {ingredients_desc}, "
+            f"crushed ice, small glass bowls, a decorative drink glass. "
+            f"Background: {background_desc}, soft natural bokeh, bright daylight. "
+            f"Color palette: {color_desc}. "
+            f"Style: professional commercial food and beverage photography, "
+            f"vibrant saturated colors, sharp foreground with blurred background, "
+            f"top-tier advertising quality. No text overlays."
         )
         response = _openai_client.images.generate(
             model="dall-e-3", prompt=prompt,
