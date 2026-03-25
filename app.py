@@ -820,9 +820,9 @@ def show_home():
             # 一括昇格ボタン
             if user["role"] in ("owner","executive"):
                 if st.button(f"🚀 {len(s_candidates)}名を全員Sに一括昇格", type="primary", use_container_width=True):
-                    for c in s_candidates:
-                        db.set_rank(c["id"], "S", user["username"])
-                    st.cache_data.clear()
+                    ids = [c["id"] for c in s_candidates]
+                    db.bulk_set_rank(ids, "S", user["username"])
+                    cached_get_customers.clear()
                     st.success(f"{len(s_candidates)}名をSランクに昇格しました")
                     st.rerun()
             for c in s_candidates[:5]:

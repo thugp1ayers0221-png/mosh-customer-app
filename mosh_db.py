@@ -426,6 +426,18 @@ def set_rank(customer_id, rank, updated_by):
             )
 
 
+def bulk_set_rank(customer_ids: list, rank: str, updated_by: str):
+    """複数顧客を1クエリで一括ランク更新"""
+    if not customer_ids:
+        return
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE customers SET rank=%s, updated_at=NOW() WHERE id = ANY(%s)",
+                (rank, customer_ids)
+            )
+
+
 def merge_customers(from_id, into_id, merged_by):
     """2顧客をマージ（from → into）"""
     with get_conn() as conn:
