@@ -8,7 +8,8 @@ from datetime import datetime
 
 from mosh_db import get_conn, migrate_db
 
-REPORTS_BASE = Path("/Users/kiyomotoyuuki/Library/Mobile Documents/com~apple~CloudDocs/Obsidian/Second Brain/MOSH/07_議事録・記録/日報")
+# iCloudに依存しないローカルパス（discord_sync.pyが書き込む）
+REPORTS_BASE = Path("/Users/kiyomotoyuuki/scripts/mosh/daily_reports")
 
 STORES = ["柏", "東村山", "おおたか", "メイソンズ", "西船橋"]
 
@@ -20,17 +21,44 @@ EXCLUDE_PATTERNS = [
     # 人数・性別表記（個人名ではない）
     r'\d+名', r'\d+人', r'[男女]性', r'男の子', r'女の子', r'^男$', r'^女$',
     r'^一見', r'^初見', r'リピーター', r'^グループ', r'^お連れ',
-    # 助詞・接続詞を含む文章（説明文・感想文）
-    r'[をへ]', r'ました$', r'ます$', r'です$', r'てる$', r'てた$',
-    r'見て', r'来て', r'持って', r'持ち', r'なって', r'して',
+    # 助詞・接続詞を含む文章（$を除去して文中マッチに変更）
+    r'[をへ]',
+    r'ました(?!さん|くん|ちゃん)',  # 山下さん等の名前は通過、動詞ました は除外
+    r'ません',
+    r'でした',
+    r'ます[。！\s]',  # 「ます」＋句点/感嘆符/空白
+    r'です[。！\s]',
+    r'てる',     # was てる$
+    r'てた',     # was てた$
+    r'ための',
+    r'ため[。\s]',
+    r'見て', r'来て', r'持って', r'持ち', r'なって',
+    r'して[いるたおく]',  # 「してい」「した」「しておく」など動詞継続
+    # 句点（日本語の文末）を含む → 文章であり個人名ではない
+    r'。',
+    # 謝罪・挨拶・感情表現
+    r'すみません', r'ありがとう', r'失礼', r'お疲れ',
+    r'了解', r'把握',
+    # 業界・関係性の説明（個人名ではない）
+    r'業者', r'同士', r'共有',
+    # 時間・頻度表現
+    r'時々', r'たまに', r'毎', r'今日',
     # 説明的なキーワード
     r'おすすめ', r'興味', r'ミックス', r'フレーバー', r'シーシャ',
     r'来店', r'予約', r'注文', r'インスタ', r'Twitter', r'X$', r'TikTok',
     r'SNS', r'口コミ', r'クーポン', r'初回',
+    # 場所・属性の説明（個人名ではない）
+    r'住み', r'住んで', r'方面', r'沿い', r'在住',
+    r'の方[。\s]', r'異国', r'アメリカ', r'外国',
+    # ポイント・注記
+    r'ポイント', r'獲得', r'追加', r'オプチャ',
+    r'^※', r'含めて',
     # 金額・レジ・商品名（個人名ではない）
     r'[¥￥]', r'レジ金', r'レジ', r'現金', r'売上', r'合計',
     r'レギュラー', r'スイーツ', r'ドリンク', r'フード', r'台$', r'皿$',
     r'その他', r'会員名', r'会員登録', r'メンバー',
+    # 設備・備品系
+    r'ケーブル', r'ハガル', r'金庫', r'洗い', r'洗えて', r'打刻',
     # 時刻表記（22:20など）
     r'\d{1,2}:\d{2}',
     # 飲み方・使い方系
@@ -40,10 +68,12 @@ EXCLUDE_PATTERNS = [
     r'^書', r'テンプレ', r'フォーマット',
     # 数字のみ・記号のみ
     r'^\d+$', r'^[\W\s]+$',
+    # 組・名の人数表記
+    r'\d+組', r'組名',
 ]
 
 # 個人名として許容する最大文字数（敬称込みで）
-MAX_NAME_LEN = 12
+MAX_NAME_LEN = 10  # 12→10に短縮（長い文章の混入をさらに防ぐ）
 
 # サービスタイプ判定
 TOP_CHANGE_PATTERN = re.compile(r'トップ替え|トップ変え|topチェンジ', re.IGNORECASE)
@@ -61,7 +91,7 @@ def parse_visitor_names(text: str) -> list[dict]:
     """来店者名リストを抽出する"""
     visitors = []
 
-    # 来店人数セクションを探す
+    # 来店人数セクションを探す（フォーマットA: 名前が来店人数内に記載）
     section_match = re.search(
         r'【来店人数】.*?(?=【|$)',
         text, re.DOTALL
@@ -70,6 +100,14 @@ def parse_visitor_names(text: str) -> list[dict]:
         return visitors
 
     section = section_match.group(0)
+
+    # 来店者記録セクションが別にある場合（フォーマットB: おおたか等）は追記
+    record_match = re.search(
+        r'【来店者記録】(.*?)(?=【|$)',
+        text, re.DOTALL
+    )
+    if record_match:
+        section += "\n" + record_match.group(1)
 
     # 人数サマリー行（新規〇名、リピ〇名）を抽出
     new_count = 0
@@ -352,13 +390,25 @@ def auto_rank(conn):
         conn.commit()
 
 
-def import_all_reports():
-    """全日報を一括インポート（Supabase PostgreSQL）"""
+def import_all_reports(days: int = None):
+    """全日報を一括インポート（Supabase PostgreSQL）
+
+    Args:
+        days: 直近N日分のファイルのみ処理。None=全件処理（初回インポート用）
+    """
     import os
+    from datetime import date, timedelta
     # ローカル実行時は環境変数 DATABASE_URL を設定してから実行
     # 例: export DATABASE_URL="postgresql://postgres.xxx:password@pooler.supabase.com:5432/postgres"
 
     migrate_db()
+
+    # 日付フィルタ
+    if days is not None:
+        cutoff = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
+        print(f"📅 直近{days}日分（{cutoff}以降）のみ処理", flush=True)
+    else:
+        cutoff = None
 
     total = 0
     for store in STORES:
@@ -367,7 +417,11 @@ def import_all_reports():
             print(f"⚠️  {store}: フォルダなし")
             continue
 
-        files = sorted(store_path.rglob("20[0-9][0-9]-[0-9][0-9]-[0-9][0-9].md"))
+        all_files = sorted(store_path.rglob("20[0-9][0-9]-[0-9][0-9]-[0-9][0-9].md"))
+        if cutoff:
+            files = [f for f in all_files if f.stem >= cutoff]
+        else:
+            files = all_files
         print(f"📁 {store}: {len(files)}件処理中...", flush=True)
 
         for i, f in enumerate(files):
@@ -408,4 +462,9 @@ def import_all_reports():
 
 
 if __name__ == "__main__":
-    import_all_reports()
+    import argparse
+    parser = argparse.ArgumentParser(description="日報をDBにインポート")
+    parser.add_argument("--days", type=int, default=None,
+                        help="直近N日分のみ処理（省略時=全件）。毎朝cronは --days 3 推奨")
+    args = parser.parse_args()
+    import_all_reports(days=args.days)

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/kiyomotoyuuki/scripts/mosh/customer_app/team_review_hook.py",
+            "timeout": 30,
+            "statusMessage": "👥 MOSHチームがレビュー中..."
+          }
+        ]
+      }
+    ]
+  }
+}
