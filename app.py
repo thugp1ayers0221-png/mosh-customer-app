@@ -13,7 +13,9 @@ import io
 import base64
 import os
 import html as _html
+import importlib
 import mosh_db as db
+importlib.reload(db)  # Streamlit Cloudのモジュールキャッシュ対策
 
 # MOSHロゴをbase64エンコード
 _logo_b64 = ""

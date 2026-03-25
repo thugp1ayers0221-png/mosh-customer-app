@@ -361,10 +361,10 @@ def get_weekday_stats(store=None, period=None):
         result.append({
             "weekday": i,
             "label": label,
-            "avg_new":    round(float(r["avg_new"]    or 0), 1),
-            "avg_repeat": round(float(r["avg_repeat"] or 0), 1),
-            "avg_total":  round(float(r["avg_total"]  or 0), 1),
-            "days_count": int(r["days_count"] or 0),
+            "avg_new":    round(float(r.get("avg_new",    0) or 0), 1),
+            "avg_repeat": round(float(r.get("avg_repeat", 0) or 0), 1),
+            "avg_total":  round(float(r.get("avg_total",  0) or 0), 1),
+            "days_count": int(r.get("days_count", 0) or 0),
         })
     return result
 
