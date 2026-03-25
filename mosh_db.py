@@ -183,6 +183,22 @@ def migrate_db():
         print(f"[migrate_db] warning: {e}", file=sys.stderr)
 
 
+def get_all_customers(store=None) -> list:
+    """顧客名一覧を取得（来店者名予測変換用・軽量クエリ）"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if store:
+                cur.execute(
+                    "SELECT name FROM customers WHERE merged_into IS NULL AND primary_store=%s ORDER BY name",
+                    (store,)
+                )
+            else:
+                cur.execute(
+                    "SELECT name FROM customers WHERE merged_into IS NULL ORDER BY name"
+                )
+            return cur.fetchall()
+
+
 def get_customers(store=None, period=None, rank=None, search=None,
                   order_by="total_visits", limit=200):
     """顧客一覧を取得（フィルタ・ソート・前月比トレンド対応）"""
