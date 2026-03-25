@@ -1480,8 +1480,33 @@ _STYLE_VARIATION_HINTS = {
 def generate_open_text(flavor: str, style_key: str) -> str:
     if not HAS_ANTHROPIC:
         return "⚠️ AI機能が無効です（ANTHROPIC_API_KEY未設定）"
-    style = ANNOUNCE_STYLES.get(style_key, list(ANNOUNCE_STYLES.values())[0])
+    from datetime import date as _date
     import random as _random
+    today = _date.today()
+    weekdays_ja = ["月", "火", "水", "木", "金", "土", "日"]
+    weekday_ja = weekdays_ja[today.weekday()]
+    # 月末判定
+    import calendar as _cal
+    last_day = _cal.monthrange(today.year, today.month)[1]
+    is_month_end = today.day == last_day
+    is_month_start = today.day == 1
+    date_context = f"{today.month}月{today.day}日（{weekday_ja}）"
+    if is_month_end:
+        date_context += f"・{today.month}月最終日"
+    elif is_month_start:
+        date_context += f"・{today.month}月スタート"
+    # 季節
+    month = today.month
+    if month in (3, 4, 5):
+        season = "春"
+    elif month in (6, 7, 8):
+        season = "夏"
+    elif month in (9, 10, 11):
+        season = "秋"
+    else:
+        season = "冬"
+
+    style = ANNOUNCE_STYLES.get(style_key, list(ANNOUNCE_STYLES.values())[0])
     hints_for_style = _STYLE_VARIATION_HINTS.get(style_key, [])
     hint = _random.choice(hints_for_style) if hints_for_style else ""
     hint_line = f"\n今回のバリエーション指示：{hint}" if hint else ""
@@ -1492,6 +1517,9 @@ def generate_open_text(flavor: str, style_key: str) -> str:
             temperature=1.0,
             system=f"""あなたはシーシャバー「MOSH」のスタッフです。
 毎日LINEオープンチャットにオープン告知を投稿します。
+
+【今日の日付】{date_context}　季節：{season}
+※日付・曜日・季節の情報は実際のこの日付に合わせて使うこと。架空の日付は書かない。
 
 【今回のスタイル：{style['label']}】
 {style['prompt']}
