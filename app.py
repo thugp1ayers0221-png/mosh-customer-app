@@ -962,7 +962,8 @@ def show_detail():
                 font=dict(family="Noto Sans JP"),
                 yaxis=dict(showgrid=False),
             )
-            st.plotly_chart(fig_dow, use_container_width=True)
+            st.plotly_chart(fig_dow, use_container_width=True,
+                            config={"staticPlot": True, "displayModeBar": False})
 
         if stats["by_month"]:
             months = list(stats["by_month"].keys())
@@ -982,7 +983,8 @@ def show_detail():
                 font=dict(family="Noto Sans JP"),
                 yaxis=dict(showgrid=False),
             )
-            st.plotly_chart(fig_m, use_container_width=True)
+            st.plotly_chart(fig_m, use_container_width=True,
+                            config={"staticPlot": True, "displayModeBar": False})
 
         if stats["by_store"] and len(stats["by_store"]) > 1:
             st.caption("店舗別")
@@ -1160,7 +1162,8 @@ def show_dashboard():
             showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True,
+                        config={"staticPlot": True, "displayModeBar": False})
 
     # 店舗別来店サマリー（全店舗選択時）
     if not store_q:
