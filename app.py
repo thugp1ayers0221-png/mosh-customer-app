@@ -1422,6 +1422,7 @@ def get_store_footer(store_name: str) -> str:
         ]
     else:
         open_time = info["weekend_open"] if (is_saturday or is_sunday or is_holiday) else info["weekday_open"]
+        close_time = info["close"]
         lines = [
             "本日もご来店お待ちしております！",
             f"{open_time}-{close_time}",
@@ -1728,6 +1729,13 @@ def show_operations():
 
         flavor_input = st.text_input("フレーバー",
             placeholder="例：レモンミント、ピーチ、グレープ", key="ops_flavor")
+        # フレーバー入力欄のオートコンプリートを無効化（ログイン画面に混入防止）
+        st.components.v1.html(
+            '<script>window.parent.document.querySelectorAll'
+            '("input[placeholder=\'例：レモンミント、ピーチ、グレープ\']")'
+            '.forEach(function(el){el.setAttribute("autocomplete","off");});</script>',
+            height=0
+        )
 
         # スタイル選択（1〜5）
         style_options = list(ANNOUNCE_STYLES.keys())
