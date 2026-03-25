@@ -1359,6 +1359,72 @@ def show_user_management():
 # 今日の営業（告知文・終業報告生成）
 # ─────────────────────────────────────────
 
+# 店舗別営業情報（電話番号は確定次第更新）
+STORE_INFO = {
+    "柏": {
+        "weekday_open": "14:00", "weekend_open": "12:00",
+        "close": "24:00", "shisha_lo": "22:45", "drink_lo": "23:30",
+        "phone": "00000000000",  # TODO: 要更新
+    },
+    "東村山": {
+        "weekday_open": "14:00", "weekend_open": "12:00",
+        "close": "24:00", "shisha_lo": "22:45", "drink_lo": "23:30",
+        "phone": "00000000000",  # TODO: 要更新
+    },
+    "おおたか": {
+        "weekday_open": "14:00", "weekend_open": "12:00",
+        "close": "24:00", "shisha_lo": "22:45", "drink_lo": "23:30",
+        "phone": "00000000000",  # TODO: 要更新
+    },
+    "西船橋": {
+        "weekday_open": "14:00", "weekend_open": "14:00",  # 全日同じ
+        "close": "24:00", "shisha_lo": "22:45", "drink_lo": "23:30",
+        "phone": "00000000000",  # TODO: 要更新
+    },
+    "メイソンズ": {
+        "weekday_open": "19:00", "weekend_open": "19:00",  # 全日同じ
+        "close": "29:00", "last_entry": "26:00",
+        "phone": "00000000000",  # TODO: 要更新
+    },
+}
+
+def get_store_footer(store_name: str) -> str:
+    """店舗名と今日の曜日・祝日から営業情報フッターを生成"""
+    from datetime import date as _date
+    info = STORE_INFO.get(store_name)
+    if not info:
+        return ""
+    today = _date.today()
+    is_weekend = today.weekday() >= 5  # 土=5, 日=6
+    try:
+        import jpholiday
+        is_holiday = bool(jpholiday.is_holiday(today))
+    except ImportError:
+        is_holiday = False
+    open_time = info["weekend_open"] if (is_weekend or is_holiday) else info["weekday_open"]
+    close_time = info["close"]
+    phone = info["phone"]
+    if store_name == "メイソンズ":
+        lines = [
+            "本日もご来店お待ちしております！",
+            f"{open_time}~{close_time}",
+            f"⚠️最終入店{info['last_entry']}",
+            phone,
+            "※15分以上返事がない場合はお手数ですがお電話にてお問い合わせください☎",
+            "※ご予約の際は📢にあります予約フォーマットをご活用くださいませ！",
+        ]
+    else:
+        lines = [
+            "本日もご来店お待ちしております！",
+            f"{open_time}-{close_time}",
+            f"SHISHA LO：{info['shisha_lo']}",
+            f"DRINK&SWEETS LO：{info['drink_lo']}",
+            phone,
+            "※15分以上返事がない場合はお手数ですがお電話にてお問い合わせください☎",
+            "※ご予約の際は📢にあります予約フォーマットをご活用くださいませ！",
+        ]
+    return "\n".join(lines)
+
 # 告知文スタイル定義（1〜5）
 # ※実際のMOSHスタッフの過去告知文を分析して分類したスタイル
 ANNOUNCE_STYLES = {
@@ -1640,6 +1706,18 @@ def show_operations():
 
     with op_tab1:
         st.markdown("**今日のおすすめフレーバーを入力してください**")
+
+        # 店舗選択（自分の店舗が設定されていない場合は手動選択）
+        known_stores = list(STORE_INFO.keys())
+        if store and store in known_stores:
+            ops_store = store
+        else:
+            ops_store = st.selectbox(
+                "🏪 店舗を選んでください",
+                options=known_stores,
+                key="ops_store"
+            )
+
         flavor_input = st.text_input("フレーバー",
             placeholder="例：レモンミント、ピーチ、グレープ", key="ops_flavor")
 
@@ -1660,9 +1738,11 @@ def show_operations():
         if gen_text and flavor_input:
             with st.spinner("告知文を生成中..."):
                 text = generate_open_text(flavor_input, selected_style)
-            st.session_state["ops_generated_text"] = text
+            footer = get_store_footer(ops_store)
+            full_text = f"{text}\n\n{footer}" if footer else text
+            st.session_state["ops_generated_text"] = full_text
             # key="ops_text_area" が既にsession_stateにあるとvalueが無視されるため、両方更新する
-            st.session_state["ops_text_area"] = text
+            st.session_state["ops_text_area"] = full_text
         if "ops_generated_text" in st.session_state:
             st.markdown("**生成された告知文：**")
             st.text_area("告知文", height=150, key="ops_text_area")
