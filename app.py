@@ -786,7 +786,7 @@ def show_home():
         rank      = c.get("rank", "C")
         visit_cnt = (c.get("period_visits") or 0) if period_q else (c.get("visits_this_month") or 0)
         rc        = rank_config.get(rank, rank_config["C"])
-        url       = f"?p=detail&id={cid}{token_param}"
+        url       = f"https://mosh-customer-app.streamlit.app/?p=detail&id={cid}{token_param}"
 
         cards_html += (
             f'<a href="{url}" style="'
