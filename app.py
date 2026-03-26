@@ -1861,7 +1861,7 @@ def show_operations():
                 cols = st.columns(min(len(candidates), 4))
                 for i, name in enumerate(candidates):
                     with cols[i % 4]:
-                        if st.button(name, key=f"cand_{name}", use_container_width=True):
+                        if st.button(name, key=f"cand_{i}_{name}", use_container_width=True):
                             if name not in st.session_state.ops_visitor_list:
                                 st.session_state.ops_visitor_list.append(name)
                             st.rerun()
