@@ -1838,39 +1838,21 @@ def show_operations():
             new_count = st.number_input("新規来店", min_value=0, value=0, step=1, key="ops_new")
         with col_b:
             repeat_count = st.number_input("リピート来店", min_value=0, value=0, step=1, key="ops_repeat")
-        try:
-            all_customers = db.get_all_customers(store if store and store != "本部" else None)
-            customer_names = sorted([c["name"] for c in all_customers if c.get("name")])
-        except Exception:
-            customer_names = []
-
         # 来店者リスト（session_stateで管理）
         if "ops_visitor_list" not in st.session_state:
             st.session_state.ops_visitor_list = []
 
         st.markdown("**来店者**")
-        visitor_search = st.text_input(
-            "名前を入力（予測変換）",
-            placeholder="あ → 朝見さん…",
+        visitor_input = st.text_input(
+            "名前を入力してEnter",
+            placeholder="名前を入力…",
             key="ops_visitor_search"
         )
-        # 入力に応じて候補を表示
-        if visitor_search:
-            candidates = [n for n in customer_names if visitor_search in n][:8]
-            if candidates:
-                cols = st.columns(min(len(candidates), 4))
-                for i, name in enumerate(candidates):
-                    with cols[i % 4]:
-                        if st.button(name, key=f"cand_{i}_{name}", use_container_width=True):
-                            if name not in st.session_state.ops_visitor_list:
-                                st.session_state.ops_visitor_list.append(name)
-                            st.rerun()
-            else:
-                # DBにない名前はそのまま追加できる
-                if st.button(f"「{visitor_search}」を追加", key="cand_new", use_container_width=True):
-                    if visitor_search not in st.session_state.ops_visitor_list:
-                        st.session_state.ops_visitor_list.append(visitor_search)
-                    st.rerun()
+        if visitor_input:
+            if st.button(f"「{visitor_input}」を追加", key="cand_new", use_container_width=True):
+                if visitor_input not in st.session_state.ops_visitor_list:
+                    st.session_state.ops_visitor_list.append(visitor_input)
+                st.rerun()
 
         # 選択済みリスト表示
         if st.session_state.ops_visitor_list:
