@@ -1391,35 +1391,65 @@ STORE_INFO = {
 
 def get_store_footer(store_name: str) -> str:
     """店舗名と今日の曜日・祝日から営業情報フッターを生成"""
-    from datetime import date as _date
+    from datetime import date as _date, timedelta
     info = STORE_INFO.get(store_name)
     if not info:
         return ""
     today = _date.today()
+    tomorrow = today + timedelta(days=1)
     is_sunday = today.weekday() == 6
     is_saturday = today.weekday() == 5
+    is_monday = today.weekday() == 0
     try:
         import jpholiday
         is_holiday = bool(jpholiday.is_holiday(today))
+        is_tomorrow_holiday = bool(jpholiday.is_holiday(tomorrow))
     except ImportError:
         is_holiday = False
+        is_tomorrow_holiday = False
     phone = info["phone"]
+
     if store_name == "メイソンズ":
-        # 日曜のみ短縮営業
-        if is_sunday:
-            close_time = info["sunday_close"]
-            last_entry = info["sunday_last_entry"]
+        # 日曜 かつ 翌日(月曜)が祝日 → 29時まで延長
+        if is_sunday and is_tomorrow_holiday:
+            lines = [
+                "本日もご来店お待ちしております！",
+                "19:00~29:00",
+                "⚠️最終入店26:00",
+                phone,
+                "※15分以上返事がない場合はお手数ですがお電話にてお問い合わせください☎",
+                "※ご予約の際は📢にあります予約フォーマットをご活用くださいませ！",
+            ]
+        # 通常の日曜 → MOSHと同じルール（12時オープン・24時クローズ）
+        elif is_sunday:
+            lines = [
+                "本日もご来店お待ちしております！",
+                "12:00-24:00",
+                "SHISHA LO：22:45",
+                "DRINK&SWEETS LO：23:30",
+                phone,
+                "※15分以上返事がない場合はお手数ですがお電話にてお問い合わせください☎",
+                "※ご予約の際は📢にあります予約フォーマットをご活用くださいませ！",
+            ]
+        # 月曜が祝日 → 12時閉店（日曜深夜からの継続営業）
+        elif is_monday and is_holiday:
+            lines = [
+                "本日もご来店お待ちしております！",
+                "〜12:00",
+                phone,
+                "※15分以上返事がない場合はお手数ですがお電話にてお問い合わせください☎",
+                "※ご予約の際は📢にあります予約フォーマットをご活用くださいませ！",
+            ]
+        # 通常営業（月〜土・祝日以外）
         else:
-            close_time = info["close"]
-            last_entry = info["last_entry"]
-        lines = [
-            "本日もご来店お待ちしております！",
-            f"19:00~{close_time}",
-            f"⚠️最終入店{last_entry}",
-            phone,
-            "※15分以上返事がない場合はお手数ですがお電話にてお問い合わせください☎",
-            "※ご予約の際は📢にあります予約フォーマットをご活用くださいませ！",
-        ]
+            lines = [
+                "本日もご来店お待ちしております！",
+                "19:00~29:00",
+                "⚠️最終入店26:00",
+                phone,
+                "※15分以上返事がない場合はお手数ですがお電話にてお問い合わせください☎",
+                "※ご予約の際は📢にあります予約フォーマットをご活用くださいませ！",
+            ]
     else:
         open_time = info["weekend_open"] if (is_saturday or is_sunday or is_holiday) else info["weekday_open"]
         close_time = info["close"]
