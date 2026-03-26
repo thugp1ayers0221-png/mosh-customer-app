@@ -1134,15 +1134,20 @@ def show_dashboard():
     s = stats.get("summary", {})
     r = stats.get("rank_counts", {})
 
-    # メトリクス
-    col1, col2, col3, col4 = st.columns(4)
-    metrics = [
-        (s.get("new_total",0),                       "新規"),
-        (s.get("repeat_b",0),                        "リピーター"),
-        (r.get("A",0) + s.get("repeat_a",0),         "A（名前あり）"),
-        (r.get("S",0) + r.get("V",0),                "S（超常連）"),
-    ]
-    for col, (val, label) in zip([col1,col2,col3,col4], metrics):
+    # ── 来客数（フロー / スプレッドシート実数）──
+    new_c   = s.get("new_total", 0)
+    rep_b   = s.get("repeat_b",  0)
+    total_c = new_c + rep_b
+    st.markdown(
+        "<div style='font-size:0.75rem;color:#9E8B7D;font-weight:600;"
+        "letter-spacing:0.05em;margin-bottom:6px;'>来客数（スプレッドシート実数）</div>",
+        unsafe_allow_html=True
+    )
+    col1, col2, col3 = st.columns(3)
+    for col, (val, label) in zip(
+        [col1, col2, col3],
+        [(new_c, "新規"), (rep_b, "リピーター"), (total_c, "合計")]
+    ):
         with col:
             st.markdown(f"""
             <div class="metric-card">
@@ -1151,38 +1156,50 @@ def show_dashboard():
             </div>
             """, unsafe_allow_html=True)
 
+    # ── 顧客資産（ストック / 登録済み累計）──
+    st.write("")
+    rank_a = r.get("A", 0)
+    rank_s = r.get("S", 0) + r.get("V", 0)
+    st.markdown(
+        "<div style='font-size:0.75rem;color:#9E8B7D;font-weight:600;"
+        "letter-spacing:0.05em;margin-bottom:6px;'>顧客資産（登録済み累計）</div>",
+        unsafe_allow_html=True
+    )
+    ca, cs = st.columns(2)
+    with ca:
+        st.markdown(f"""
+        <div class="metric-card">
+          <div class="metric-value" style="color:#4FB8F0;">{rank_a}</div>
+          <div class="metric-label">Aランク 登録人数</div>
+        </div>""", unsafe_allow_html=True)
+    with cs:
+        st.markdown(f"""
+        <div class="metric-card">
+          <div class="metric-value" style="color:#FFB800;">{rank_s}</div>
+          <div class="metric-label">Sランク 登録人数</div>
+        </div>""", unsafe_allow_html=True)
+
     st.write("")
 
-    # ランク分布パイチャート
-    # ラベル → (表示名, 色)
-    rank_color_map = {
-        "S": ("#FFB800", r.get("S",0) + r.get("V",0)),
-        "A": ("#4FB8F0", r.get("A",0)),
-        "B": ("#52D68A", s.get("repeat_b",0)),
-        "C": ("#FF8C69", s.get("new_total",0)),
-    }
-    rank_labels  = [k for k, (_, v) in rank_color_map.items() if v > 0]
-    rank_values  = [v for _, (_, v) in rank_color_map.items() if v > 0]
-    rank_colors  = [c for _, (c, v) in rank_color_map.items() if v > 0]
-
-    if rank_labels:
+    # ── 来客構成ドーナツ（フローのみ: 新規 vs リピーター）──
+    if total_c > 0:
         fig = go.Figure(go.Pie(
-            labels=rank_labels,
-            values=rank_values,
+            labels=["新規", "リピーター"],
+            values=[new_c, rep_b],
             hole=0.45,
             marker=dict(
-                colors=rank_colors,
+                colors=["#FF8C69", "#52D68A"],
                 line=dict(color="#FFFFFF", width=2)
             ),
             textinfo="label+percent",
             textfont_size=13,
         ))
         fig.update_layout(
-            title=f"ランク分布 — {sel_store} {sel_period}",
+            title=f"来客構成 — {sel_store} {sel_period}",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=50,b=10,l=10,r=10),
-            height=300,
+            height=280,
             font=dict(family="Noto Sans JP", color="#4A3728"),
             showlegend=False,
         )
@@ -1203,11 +1220,10 @@ def show_dashboard():
         # 全店舗を1クエリで取得（N+1解消）
         all_stores_data = cached_get_all_stores_stats(period=period_q)
         for store in cached_get_stores():
-            ss = all_stores_data.get(store, {})
+            ss     = all_stores_data.get(store, {})
             new_c  = ss.get("new_total", 0)
             rep_b  = ss.get("repeat_b", 0)
-            rep_a  = ss.get("repeat_a", 0)
-            total  = new_c + rep_b + rep_a + ss.get("cafe_total", 0)
+            total  = new_c + rep_b
             color  = store_colors.get(store, "#A8D8EA")
             st.markdown(f"""
             <div style="
@@ -1227,15 +1243,11 @@ def show_dashboard():
               <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:flex-start;">
                 <div style="text-align:center;flex:1;min-width:0;">
                   <div style="font-size:1.2rem;font-weight:700;color:#FF8C69;">{new_c}</div>
-                  <div style="font-size:0.68rem;color:#9E8B7D;">C 新規</div>
+                  <div style="font-size:0.68rem;color:#9E8B7D;">新規</div>
                 </div>
                 <div style="text-align:center;flex:1;min-width:0;">
-                  <div style="font-size:1.2rem;font-weight:700;color:#4FB8F0;">{rep_b}</div>
-                  <div style="font-size:0.68rem;color:#9E8B7D;">B リピーター</div>
-                </div>
-                <div style="text-align:center;flex:1;min-width:0;">
-                  <div style="font-size:1.2rem;font-weight:700;color:#52D68A;">{rep_a}</div>
-                  <div style="font-size:0.68rem;color:#9E8B7D;">A 名前あり</div>
+                  <div style="font-size:1.2rem;font-weight:700;color:#52D68A;">{rep_b}</div>
+                  <div style="font-size:0.68rem;color:#9E8B7D;">リピーター</div>
                 </div>
                 <div style="text-align:center;flex:1;min-width:0;padding-left:8px;border-left:1px solid #e8ddd4;">
                   <div style="font-size:1.3rem;font-weight:800;color:#4A3728;">{total}</div>
