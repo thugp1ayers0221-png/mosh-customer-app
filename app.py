@@ -88,6 +88,22 @@ def cached_get_all_stores_stats(period=None):
     """全店舗統計を1クエリで取得（ダッシュボード高速化）"""
     return db.get_all_stores_stats(period=period)
 
+@st.cache_data(ttl=300, show_spinner=False)
+def cached_get_s_candidates():
+    return db.get_s_candidates()
+
+@st.cache_data(ttl=120, show_spinner=False)
+def cached_get_customer(cid):
+    return db.get_customer(cid)
+
+@st.cache_data(ttl=120, show_spinner=False)
+def cached_get_visits(cid):
+    return db.get_visits(cid)
+
+@st.cache_data(ttl=120, show_spinner=False)
+def cached_get_visit_stats(cid):
+    return db.get_visit_stats(cid)
+
 # ─────────────────────────────────────────
 # MOSHブランドCSS（スマホ対応）
 # ─────────────────────────────────────────
@@ -812,9 +828,8 @@ def show_home():
     if not search_q and period_q:
         customers = [c for c in customers if (c.get("period_visits") or 0) > 0]
 
-    # S候補の通知（全顧客から検索）
-    all_customers_for_s = cached_get_customers(limit=9999)
-    s_candidates = [c for c in all_customers_for_s if c["total_visits"] >= 10 and c["rank"] == "A"]
+    # S候補の通知（専用軽量クエリ）
+    s_candidates = cached_get_s_candidates()
     if s_candidates and user["role"] in ("owner","manager","executive"):
         with st.expander(f"⚠️ Sランク候補 {len(s_candidates)}名（来店10回以上・未昇格）"):
             # 一括昇格ボタン
@@ -881,7 +896,7 @@ def show_home():
 def show_detail():
     user = st.session_state.user
     cid  = st.session_state.selected_customer
-    c    = db.get_customer(cid)
+    c    = cached_get_customer(cid)
     if not c:
         st.error("顧客が見つかりません")
         return
@@ -949,7 +964,7 @@ def show_detail():
 
     # ────── Tab1: 来店ログ ──────
     with tab1:
-        visits = db.get_visits(cid)
+        visits = cached_get_visits(cid)
         if visits:
             st.caption(f"全 {len(visits)} 件")
             for v in visits:
@@ -967,7 +982,7 @@ def show_detail():
 
     # ────── Tab2: 統計 ──────
     with tab2:
-        stats = db.get_visit_stats(cid)
+        stats = cached_get_visit_stats(cid)
 
         if stats["by_dow"]:
             fig_dow = go.Figure(go.Bar(
@@ -1061,10 +1076,11 @@ def show_detail():
                 if is_member != bool(c["is_member"]):
                     if st.button("会員ステータスを更新"):
                         with db.get_conn() as conn:
-                            conn.execute(
-                                "UPDATE customers SET is_member=? WHERE id=?",
-                                (1 if is_member else 0, cid)
-                            )
+                            with conn.cursor() as cur:
+                                cur.execute(
+                                    "UPDATE customers SET is_member=%s WHERE id=%s",
+                                    (1 if is_member else 0, cid)
+                                )
                         st.rerun()
 
                 # VIP トップ替えカウンター

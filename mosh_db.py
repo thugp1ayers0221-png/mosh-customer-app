@@ -242,6 +242,19 @@ def get_customers(store=None, period=None, rank=None, search=None,
             return [dict(r) for r in cur.fetchall()]
 
 
+def get_s_candidates():
+    """Sランク候補（Aランク・来店10回以上）を軽量クエリで取得"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, name, rank, total_visits, primary_store
+                FROM customers
+                WHERE rank='A' AND total_visits >= 10 AND merged_into IS NULL
+                ORDER BY total_visits DESC
+            """)
+            return [dict(r) for r in cur.fetchall()]
+
+
 def get_customer(customer_id):
     with get_conn() as conn:
         with conn.cursor() as cur:
