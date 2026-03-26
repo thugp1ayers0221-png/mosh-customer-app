@@ -375,7 +375,7 @@ def update_cross_store_flags(conn):
     """同名が複数店舗にいる顧客にフラグ"""
     with conn.cursor() as cur:
         cur.execute("""
-            SELECT c1.id, c2.id
+            SELECT c1.id AS id1, c2.id AS id2
             FROM customers c1
             JOIN customers c2 ON (
                 replace(replace(c1.name,'さん',''),'くん','') =
@@ -390,7 +390,7 @@ def update_cross_store_flags(conn):
 
         for r in rows:
             cur.execute("UPDATE customers SET cross_store_flag=1 WHERE id IN (%s,%s)",
-                        (r['id'], r['id_1'] if 'id_1' in r else list(r.values())[1]))
+                        (r['id1'], r['id2']))
         conn.commit()
     print(f"クロスストアフラグ: {len(rows)}件")
 
