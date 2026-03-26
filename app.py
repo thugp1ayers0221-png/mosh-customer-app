@@ -1839,9 +1839,9 @@ def show_operations():
         today_str = date.today().strftime("%Y/%m/%d")
         col_a, col_b = st.columns(2)
         with col_a:
-            new_count = st.number_input("新規来店", min_value=0, value=0, step=1, key="ops_new")
+            new_count = st.number_input("新規来店", min_value=0, step=1, key="ops_new")
         with col_b:
-            repeat_count = st.number_input("リピート来店", min_value=0, value=0, step=1, key="ops_repeat")
+            repeat_count = st.number_input("リピート来店", min_value=0, step=1, key="ops_repeat")
         all_visitor_names = st.text_area(
             "来店者（読点・改行で区切る）",
             placeholder="てらかどさん、かいとさん\nもひかんさん",
@@ -1855,12 +1855,26 @@ def show_operations():
             placeholder="今日は○○でした", height=80, key="ops_notice")
         register_diff = st.text_input("レジ締め過不足",
             placeholder="0（不足の場合は -500 など）", key="ops_register")
+        def _add_san(raw: str) -> str:
+            """読点・カンマ・改行で区切られた名前に「さん」を自動付与"""
+            import re
+            names = re.split(r"[、,，\n]", raw)
+            result = []
+            for n in names:
+                n = n.strip()
+                if not n:
+                    continue
+                if not re.search(r"(さん|くん|ちゃん|様|氏)$", n):
+                    n += "さん"
+                result.append(n)
+            return "、".join(result)
+
         if st.button("📋 終業報告を生成", type="primary", use_container_width=True):
             flavor_for_report = st.session_state.get("ops_flavor", "")
             report = generate_discord_report(
                 store_label, today_str, flavor_for_report,
                 int(new_count), int(repeat_count),
-                all_visitor_names, done_today, todo_tomorrow, notice, register_diff)
+                _add_san(all_visitor_names), done_today, todo_tomorrow, notice, register_diff)
             st.session_state["ops_report"] = report
         if "ops_report" in st.session_state:
             st.markdown("**生成された終業報告：**")
