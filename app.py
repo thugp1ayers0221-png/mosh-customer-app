@@ -1828,7 +1828,6 @@ def show_operations():
             if st.button("🗑 全部クリア", key="ops_clear_all", use_container_width=True):
                 st.session_state["ops_new"]            = 0
                 st.session_state["ops_repeat"]         = 0
-                st.session_state["ops_visitor_list"]   = []
                 st.session_state["ops_visitor_search"] = ""
                 st.session_state["ops_done"]           = ""
                 st.session_state["ops_todo"]           = ""
@@ -1843,38 +1842,11 @@ def show_operations():
             new_count = st.number_input("新規来店", min_value=0, value=0, step=1, key="ops_new")
         with col_b:
             repeat_count = st.number_input("リピート来店", min_value=0, value=0, step=1, key="ops_repeat")
-        # 来店者リスト（session_stateで管理）
-        if "ops_visitor_list" not in st.session_state:
-            st.session_state.ops_visitor_list = []
-
-        st.markdown("**来店者**")
-        visitor_input = st.text_input(
-            "名前を入力してEnter",
-            placeholder="名前を入力…",
-            key="ops_visitor_search"
+        all_visitor_names = st.text_area(
+            "来店者（読点・改行で区切る）",
+            placeholder="てらかどさん、かいとさん\nもひかんさん",
+            height=80, key="ops_visitor_search"
         )
-        if visitor_input:
-            if st.button(f"「{visitor_input}」を追加", key="cand_new", use_container_width=True):
-                if visitor_input not in st.session_state.ops_visitor_list:
-                    st.session_state.ops_visitor_list.append(visitor_input)
-                st.rerun()
-
-        # 選択済みリスト表示
-        if st.session_state.ops_visitor_list:
-            st.markdown("**追加済み：**")
-            for name in list(st.session_state.ops_visitor_list):
-                c1, c2 = st.columns([5, 1])
-                with c1:
-                    st.markdown(f"• {name}")
-                with c2:
-                    if st.button("✕", key=f"del_{name}"):
-                        st.session_state.ops_visitor_list.remove(name)
-                        st.rerun()
-            if st.button("🗑 リストをクリア", key="ops_clear_visitors"):
-                st.session_state.ops_visitor_list = []
-                st.rerun()
-
-        all_visitor_names = "\n".join(st.session_state.ops_visitor_list)
         done_today    = st.text_area("今日やったこと（1行1項目）",
             placeholder="・清掃\n・SNS投稿", height=100, key="ops_done")
         todo_tomorrow = st.text_area("明日やってほしいこと（1行1項目）",
