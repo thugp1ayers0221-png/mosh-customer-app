@@ -1826,11 +1826,16 @@ def show_operations():
             st.markdown("**終業報告フォームに入力してください**")
         with col_clear_all:
             if st.button("🗑 全部クリア", key="ops_clear_all", use_container_width=True):
-                for k in ["ops_new", "ops_repeat", "ops_visitor_list", "ops_visitor_search",
-                          "ops_done", "ops_todo", "ops_notice", "ops_register", "ops_report",
-                          "ops_report_area", "ops_generated_text"]:
+                st.session_state["ops_new"]            = 0
+                st.session_state["ops_repeat"]         = 0
+                st.session_state["ops_visitor_list"]   = []
+                st.session_state["ops_visitor_search"] = ""
+                st.session_state["ops_done"]           = ""
+                st.session_state["ops_todo"]           = ""
+                st.session_state["ops_notice"]         = ""
+                st.session_state["ops_register"]       = ""
+                for k in ["ops_report", "ops_report_area", "ops_generated_text"]:
                     st.session_state.pop(k, None)
-                st.session_state.ops_visitor_list = []
                 st.rerun()
         today_str = date.today().strftime("%Y/%m/%d")
         col_a, col_b = st.columns(2)
