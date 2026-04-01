@@ -130,10 +130,10 @@ def parse_visitor_names(text: str) -> list[dict]:
     cafe_count = 0
     named_count = 0
 
-    new_match = re.search(r'新規[　\s]*(\d+)', section)
+    new_match = re.search(r'新[規]?[　\s]*(\d+)', section)
     if new_match:
         new_count = int(new_match.group(1))
-    repeat_match = re.search(r'リピ[ーター]*[　\s]*(\d+)', section)
+    repeat_match = re.search(r'リ[ピーター]*[　\s]*(\d+)', section)
     if repeat_match:
         repeat_count = int(repeat_match.group(1))
     cafe_match = re.search(r'カフェ[利用]*[　\s]*(\d+)', section)
