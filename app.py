@@ -1748,15 +1748,19 @@ def generate_discord_report(store: str, date_str: str, flavor: str,
     return "\n".join(lines)
 
 def _get_elegant_font(size: int):
-    """エレガントなPlayfair Displayフォントを取得（フォールバックあり）"""
+    """日本語対応エレガントフォントを取得（フォールバックあり）"""
     from PIL import ImageFont
+    base = os.path.dirname(__file__)
     candidates = [
-        os.path.join(os.path.dirname(__file__), "assets", "fonts", "PlayfairDisplay.ttf"),
-        "/tmp/mosh_playfair.ttf",
+        # Noto Serif JP: 日本語+英語対応のエレガントなセリフ体
+        os.path.join(base, "assets", "fonts", "NotoSerifJP.ttf"),
+        # 英数字専用フォールバック
+        os.path.join(base, "assets", "fonts", "PlayfairDisplay.ttf"),
         "/System/Library/Fonts/Optima.ttc",
         "/System/Library/Fonts/Palatino.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSerifCJKjp-Regular.otf",
+        "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
         "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
     ]
     for path in candidates:
         try:
