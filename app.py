@@ -1812,19 +1812,27 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
             draw.text((int(85 * s), int(168 * s)), catch_phrase,
                       fill=(255, 255, 255, 210), font=font_catch, anchor="lm")
 
-        # 大タイトル（Cormorant Garamond）- 幅に合わせて自動縮小
-        max_title_w = int(W * 0.88)
-        font_size_t = int(128 * s)
-        font_title = _get_title_font(font_size_t)
-        for _ in range(20):
+        # 大タイトル - 日本語含む場合はNotoSerifJP、英語はCormorant Garamond
+        import unicodedata
+        def _has_wide_chars(t):
+            return any(unicodedata.east_asian_width(c) in ('W', 'F', 'A') for c in t)
+        is_jp = _has_wide_chars(title)
+        _font_getter = _get_jp_font if is_jp else _get_title_font
+        # 日本語は文字が大きいので初期サイズを小さめに
+        font_size_t = int((96 if is_jp else 128) * s)
+        font_title = _font_getter(font_size_t)
+        max_title_w = int(W * 0.85)
+        min_size = int(36 * s)
+        for _ in range(25):
             try:
                 bbox = draw.textbbox((0, 0), title, font=font_title)
-                if (bbox[2] - bbox[0]) <= max_title_w:
-                    break
+                text_w = bbox[2] - bbox[0]
             except Exception:
+                text_w = max_title_w + 1  # 失敗したら縮小継続
+            if text_w <= max_title_w or font_size_t <= min_size:
                 break
-            font_size_t = int(font_size_t * 0.85)
-            font_title = _get_title_font(max(font_size_t, int(32 * s)))
+            font_size_t = max(int(font_size_t * 0.88), min_size)
+            font_title = _font_getter(font_size_t)
         draw.text((int(75 * s), int(295 * s)), title,
                   fill=(255, 255, 255, 248), font=font_title, anchor="lm")
 
