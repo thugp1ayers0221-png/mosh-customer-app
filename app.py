@@ -1812,8 +1812,19 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
             draw.text((int(85 * s), int(168 * s)), catch_phrase,
                       fill=(255, 255, 255, 210), font=font_catch, anchor="lm")
 
-        # 大タイトル（Cormorant Garamond）
-        font_title = _get_title_font(int(128 * s))
+        # 大タイトル（Cormorant Garamond）- 幅に合わせて自動縮小
+        max_title_w = int(W * 0.88)
+        font_size_t = int(128 * s)
+        font_title = _get_title_font(font_size_t)
+        for _ in range(20):
+            try:
+                bbox = draw.textbbox((0, 0), title, font=font_title)
+                if (bbox[2] - bbox[0]) <= max_title_w:
+                    break
+            except Exception:
+                break
+            font_size_t = int(font_size_t * 0.85)
+            font_title = _get_title_font(max(font_size_t, int(32 * s)))
         draw.text((int(75 * s), int(295 * s)), title,
                   fill=(255, 255, 255, 248), font=font_title, anchor="lm")
 
@@ -1904,30 +1915,41 @@ def generate_flavor_image(flavor: str, title: str = ""):
                 model="claude-haiku-4-5",
                 max_tokens=220,
                 system="""You are an art director for a premium Japanese shisha bar.
-Given a shisha flavor name, respond in this exact format (be specific and visual):
-FLAVOR_INGREDIENTS: [English: what fills the hookah bowl AND flat-lay, e.g. "sliced peaches, fresh mint, ice cubes, honey jar, dried black tea leaves"]
-BACKGROUND_SCENE: [English: moody dark indoor/outdoor scene matching the flavor, e.g. "deep amber candlelit interior with vintage copper tones and soft bokeh"]
-CATCH_PHRASE: [Japanese: elegant 1-line catch copy ≤16 chars, e.g. "やさしい甘さ、心ほどけるひととき"]
-FLAVOR_JP: [Japanese katakana reading of the flavor, e.g. "ピーチティー"]
-CIRCLE_LINE1: [Japanese: short flavor descriptor line 1, ≤10 chars, e.g. "フルーティーな"]
-CIRCLE_LINE2: [Japanese: short flavor descriptor line 2, ≤10 chars, e.g. "ピーチの香りと"]
-CIRCLE_LINE3: [Japanese: short flavor descriptor line 3, ≤10 chars, e.g. "紅茶の深み"]""",
+Given a shisha flavor name, respond in this EXACT format with NO extra words or prefixes:
+FLAVOR_INGREDIENTS: sliced peaches, fresh mint, ice cubes, honey jar, dried black tea leaves
+BACKGROUND_SCENE: deep amber candlelit interior with vintage copper tones and soft bokeh
+CATCH_PHRASE: やさしい甘さ、心ほどけるひととき
+FLAVOR_JP: ピーチティー
+CIRCLE_LINE1: フルーティーな
+CIRCLE_LINE2: ピーチの香りと
+CIRCLE_LINE3: 紅茶の深み
+
+Rules:
+- FLAVOR_INGREDIENTS and BACKGROUND_SCENE: English only
+- CATCH_PHRASE: Japanese only, ≤16 chars, elegant poetic copy
+- FLAVOR_JP: Japanese katakana reading of the flavor name, ≤12 chars
+- CIRCLE_LINE1/2/3: Japanese only, ≤10 chars each, describing the flavor
+- Do NOT include the word "Japanese:" anywhere in your response""",
                 messages=[{"role": "user", "content": f"Flavor: {flavor}"}]
             )
             result = v.content[0].text.strip()
             c_lines = []
             for line in result.splitlines():
+                def _clean(val: str) -> str:
+                    # "Japanese:" などの余分なプレフィックスを除去
+                    import re
+                    return re.sub(r'^(Japanese|English)\s*:\s*', '', val).strip().strip('"')
                 if line.startswith("FLAVOR_INGREDIENTS:"):
-                    flavor_ingredients = line.replace("FLAVOR_INGREDIENTS:", "").strip()
+                    flavor_ingredients = _clean(line.replace("FLAVOR_INGREDIENTS:", "").strip())
                 elif line.startswith("BACKGROUND_SCENE:"):
-                    background_scene = line.replace("BACKGROUND_SCENE:", "").strip()
+                    background_scene = _clean(line.replace("BACKGROUND_SCENE:", "").strip())
                 elif line.startswith("CATCH_PHRASE:"):
-                    catch_phrase = line.replace("CATCH_PHRASE:", "").strip()
+                    catch_phrase = _clean(line.replace("CATCH_PHRASE:", "").strip())
                 elif line.startswith("FLAVOR_JP:"):
-                    flavor_jp = line.replace("FLAVOR_JP:", "").strip()
+                    flavor_jp = _clean(line.replace("FLAVOR_JP:", "").strip())
                 elif line.startswith("CIRCLE_LINE"):
-                    c_lines.append(line.split(":", 1)[1].strip())
-            circle_lines = c_lines if c_lines else []
+                    c_lines.append(_clean(line.split(":", 1)[1].strip()))
+            circle_lines = [l for l in c_lines if l] if c_lines else []
 
         prompt = (
             f"A premium Japanese shisha hookah product photo, moody and cinematic. "
