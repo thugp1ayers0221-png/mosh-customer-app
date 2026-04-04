@@ -1747,7 +1747,70 @@ def generate_discord_report(store: str, date_str: str, flavor: str,
     ]
     return "\n".join(lines)
 
-def generate_flavor_image(flavor: str):
+def _get_elegant_font(size: int):
+    """エレガントなPlayfair Displayフォントを取得（フォールバックあり）"""
+    from PIL import ImageFont
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "assets", "fonts", "PlayfairDisplay.ttf"),
+        "/tmp/mosh_playfair.ttf",
+        "/System/Library/Fonts/Optima.ttc",
+        "/System/Library/Fonts/Palatino.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+    ]
+    for path in candidates:
+        try:
+            if os.path.exists(path):
+                return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def _add_text_overlay(img_bytes: bytes, title: str) -> bytes:
+    """PIL で画像にタイトルとブランド名をオーバーレイして返す"""
+    if not HAS_PIL:
+        return img_bytes
+    import io
+    from PIL import Image, ImageDraw, ImageFilter
+
+    img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
+    W, H = img.size
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    # ── 下部ブランド帯 ──
+    brand_text = "shisha & sweets  MOSH"
+    brand_bar_h = max(80, H // 10)
+    brand_font = _get_elegant_font(max(36, H // 22))
+
+    # グラデーション風の黒帯（下）
+    for i in range(brand_bar_h):
+        alpha = int(200 * (i / brand_bar_h))
+        draw.rectangle([(0, H - brand_bar_h + i), (W, H - brand_bar_h + i + 1)],
+                       fill=(0, 0, 0, alpha))
+    draw.text((W // 2, H - brand_bar_h // 2), brand_text,
+              fill=(255, 255, 255, 240), font=brand_font, anchor="mm")
+
+    # ── タイトル帯（入力されている場合のみ）──
+    if title.strip():
+        title_bar_h = max(100, H // 8)
+        title_font = _get_elegant_font(max(52, H // 14))
+
+        # グラデーション風の黒帯（上）
+        for i in range(title_bar_h):
+            alpha = int(200 * (1 - i / title_bar_h))
+            draw.rectangle([(0, i), (W, i + 1)], fill=(0, 0, 0, alpha))
+        draw.text((W // 2, title_bar_h // 2), title.upper(),
+                  fill=(255, 255, 255, 240), font=title_font, anchor="mm")
+
+    composite = Image.alpha_composite(img, overlay).convert("RGB")
+    out = io.BytesIO()
+    composite.save(out, format="JPEG", quality=95)
+    return out.getvalue()
+
+
+def generate_flavor_image(flavor: str, title: str = ""):
     if not HAS_OPENAI:
         return None
     try:
@@ -1796,7 +1859,8 @@ BACKGROUND_SCENE: [outdoor natural environment matching the flavor, e.g. "sunlit
         )
         import requests as _requests
         img_url = response.data[0].url
-        return _requests.get(img_url).content
+        img_bytes = _requests.get(img_url).content
+        return _add_text_overlay(img_bytes, title)
     except Exception as e:
         st.error(f"画像生成エラー: {e}")
         return None
@@ -1831,6 +1895,8 @@ def show_operations():
             '.forEach(function(el){el.setAttribute("autocomplete","off");});</script>',
             height=0
         )
+        title_input = st.text_input("画像タイトル（任意）",
+            placeholder="例：本日のおすすめ、OPEN、NEW FLAVOR", key="ops_title")
 
         # スタイル選択（1〜5）
         style_options = list(ANNOUNCE_STYLES.keys())
@@ -1860,7 +1926,7 @@ def show_operations():
             st.caption("👆 長押し→全選択→コピーしてLINEに貼り付けてください")
         if gen_img and flavor_input:
             with st.spinner("画像を生成中...（30秒ほどかかります）"):
-                img_bytes = generate_flavor_image(flavor_input)
+                img_bytes = generate_flavor_image(flavor_input, title_input)
             if img_bytes:
                 st.session_state["ops_generated_img"] = img_bytes
         if "ops_generated_img" in st.session_state:
