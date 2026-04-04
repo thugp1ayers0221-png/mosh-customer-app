@@ -1793,7 +1793,7 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
     if not HAS_PIL:
         return img_bytes
     import io
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFilter
 
     img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
     W, H = img.size
@@ -1802,15 +1802,37 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
+    def _draw_glowing_text(ov, pos, text, font, anchor="lm",
+                           glow_radius=10, glow_alpha=130,
+                           shadow_offset=3, shadow_alpha=160):
+        """グロー＋ドロップシャドウ付きテキストを描画（参照画像の浮き出し効果）"""
+        x, y = pos
+        # 1. グロー層（ぼかした白テキスト）
+        glow = Image.new("RGBA", ov.size, (0, 0, 0, 0))
+        gd = ImageDraw.Draw(glow)
+        gd.text((x, y), text, fill=(255, 255, 255, glow_alpha), font=font, anchor=anchor)
+        glow = glow.filter(ImageFilter.GaussianBlur(radius=int(glow_radius * s)))
+        ov_new = Image.alpha_composite(ov, glow)
+        d = ImageDraw.Draw(ov_new)
+        # 2. ドロップシャドウ（わずかにオフセットした暗い影）
+        so = int(shadow_offset * s)
+        d.text((x + so, y + so), text, fill=(0, 0, 0, shadow_alpha), font=font, anchor=anchor)
+        # 3. メインテキスト（鮮明な白）
+        d.text((x, y), text, fill=(255, 255, 255, 252), font=font, anchor=anchor)
+        return ov_new
+
     has_title = bool(title.strip())
 
     # ── タイトルブロック（左上寄り）──
     if has_title:
-        # キャッチフレーズ（タイトル上の小さな日本語）
+        # キャッチフレーズ（タイトル上の小さな日本語）- 軽いグローのみ
         if catch_phrase:
             font_catch = _get_jp_font(int(26 * s))
-            draw.text((int(85 * s), int(168 * s)), catch_phrase,
-                      fill=(255, 255, 255, 210), font=font_catch, anchor="lm")
+            overlay = _draw_glowing_text(
+                overlay, (int(85 * s), int(168 * s)), catch_phrase, font_catch,
+                anchor="lm", glow_radius=6, glow_alpha=90, shadow_offset=1, shadow_alpha=100
+            )
+            draw = ImageDraw.Draw(overlay)
 
         # 大タイトル - 日本語含む場合はNotoSerifJP、英語はCormorant Garamond
         import unicodedata
@@ -1833,15 +1855,22 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
                 break
             font_size_t = max(int(font_size_t * 0.90), min_size)
             font_title = _font_getter(font_size_t)
-        draw.text((int(75 * s), int(295 * s)), title,
-                  fill=(255, 255, 255, 248), font=font_title, anchor="lm")
+        # グロー強め・シャドウ明確 → 浮き出し感
+        overlay = _draw_glowing_text(
+            overlay, (int(75 * s), int(295 * s)), title, font_title,
+            anchor="lm", glow_radius=12, glow_alpha=150, shadow_offset=3, shadow_alpha=180
+        )
+        draw = ImageDraw.Draw(overlay)
 
         # 日本語サブタイトル（タイトル直下）- 文字間スペースを追加して優雅に
         if flavor_jp:
             font_jp = _get_jp_font(int(28 * s))
             spaced = "  ".join(flavor_jp)  # 文字間にスペース
-            draw.text((int(90 * s), int(378 * s)), spaced,
-                      fill=(255, 255, 255, 200), font=font_jp, anchor="lm")
+            overlay = _draw_glowing_text(
+                overlay, (int(90 * s), int(378 * s)), spaced, font_jp,
+                anchor="lm", glow_radius=5, glow_alpha=80, shadow_offset=1, shadow_alpha=100
+            )
+            draw = ImageDraw.Draw(overlay)
 
     # ── 円形バッジ（左中央）──
     if circle_lines and has_title:
@@ -1889,14 +1918,14 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
                       fill=(255, 255, 255, 230), font=font_badge, anchor="mm")
 
     # ── 下部：ブランド名 + デコレーションライン + タグライン ──
-    # ブランド名
+    # ブランド名（グロー付き）
     font_brand = _get_title_font(int(36 * s))
     brand_y = int(888 * s)
-    # 軽いシャドウで視認性を上げる
-    draw.text((W // 2 + 1, brand_y + 1), "shisha & sweets  MOSH",
-              fill=(0, 0, 0, 120), font=font_brand, anchor="mm")
-    draw.text((W // 2, brand_y), "shisha & sweets  MOSH",
-              fill=(255, 255, 255, 235), font=font_brand, anchor="mm")
+    overlay = _draw_glowing_text(
+        overlay, (W // 2, brand_y), "shisha & sweets  MOSH", font_brand,
+        anchor="mm", glow_radius=8, glow_alpha=110, shadow_offset=2, shadow_alpha=140
+    )
+    draw = ImageDraw.Draw(overlay)
 
     # デコレーションライン ──── ◆ ────
     line_y = int(924 * s)
