@@ -1960,24 +1960,32 @@ Rules:
             circle_lines = [l for l in c_lines if l] if c_lines else []
 
         prompt = (
-            f"A premium Japanese shisha hookah product photo, moody and cinematic. "
-            f"A golden ornate hookah sits on the RIGHT side of the frame, "
-            f"with soft white smoke rising elegantly from the top. "
-            f"On the CENTER-LEFT, a beautiful still-life arrangement: "
-            f"{flavor_ingredients}, scattered on a dark rustic tray "
-            f"with glistening water droplets, a crystal glass tumbler. "
-            f"The LEFT third of the image is naturally darker — "
-            f"suitable for text overlay — with soft moody bokeh. "
-            f"Background: {background_scene}. "
-            f"Warm amber and golden tones, dramatic chiaroscuro lighting. "
-            f"No text. No labels. No logos. "
-            f"Photorealistic, ultra-high detail, luxury editorial photography, "
-            f"shallow depth of field, Square 1:1 format. "
-            f"Shot with Canon EOS R5, 85mm f/1.4, soft fill light."
+            f"Hyper-realistic luxury product photography for a premium Japanese shisha bar. "
+            f"Scene: a beautifully crafted ornate hookah in antique brass and gold "
+            f"positioned on the RIGHT side, its glass base catching the light, "
+            f"with thick white smoke curling upward dramatically. "
+            f"On the CENTER and LEFT: an exquisite still-life on a dark hammered-brass tray — "
+            f"{flavor_ingredients} — arranged with refined precision: "
+            f"glistening ice cubes, fresh ingredients with visible moisture droplets, "
+            f"a crystal cocktail glass with condensation. "
+            f"Background: {background_scene}, with deep natural bokeh. "
+            f"Lighting: single warm key light from upper-left creating dramatic "
+            f"chiaroscuro shadows, golden rim lighting on the hookah, "
+            f"subtle lens flare for cinematic depth. "
+            f"Color grading: rich amber, deep burgundy, warm copper tones, "
+            f"high contrast, shadows with cool blue undertones. "
+            f"The upper-left area fades into atmospheric dark bokeh — ideal for text. "
+            f"Absolutely NO text, NO watermarks, NO logos anywhere. "
+            f"Style: high-end Japanese lifestyle magazine editorial, "
+            f"similar to Monocle or Kinfolk magazine cover quality. "
+            f"Ultra-sharp focus on hero items, silky smooth bokeh background. "
+            f"Shot on Phase One IQ4 150MP, 110mm f/2.8 Schneider lens, "
+            f"tethered studio with Profoto B10 key light and silver reflector fill. "
+            f"8K resolution, commercial retouching, impeccable detail."
         )
         response = _openai_client.images.generate(
             model="dall-e-3", prompt=prompt,
-            size="1024x1024", quality="standard", n=1,
+            size="1024x1024", quality="hd", n=1,
         )
         import requests as _requests
         img_url = response.data[0].url
