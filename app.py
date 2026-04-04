@@ -1747,20 +1747,15 @@ def generate_discord_report(store: str, date_str: str, flavor: str,
     ]
     return "\n".join(lines)
 
-def _get_elegant_font(size: int):
-    """日本語対応エレガントフォントを取得（フォールバックあり）"""
+def _get_title_font(size: int):
+    """英語大タイトル用フォント（Cormorant Garamond Bold）"""
     from PIL import ImageFont
     base = os.path.dirname(__file__)
     candidates = [
-        # Noto Serif JP: 日本語+英語対応のエレガントなセリフ体
+        os.path.join(base, "assets", "fonts", "CormorantGaramond-Bold.ttf"),
         os.path.join(base, "assets", "fonts", "NotoSerifJP.ttf"),
-        # 英数字専用フォールバック
-        os.path.join(base, "assets", "fonts", "PlayfairDisplay.ttf"),
         "/System/Library/Fonts/Optima.ttc",
         "/System/Library/Fonts/Palatino.ttc",
-        "/usr/share/fonts/truetype/noto/NotoSerifCJKjp-Regular.otf",
-        "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
     ]
     for path in candidates:
         try:
@@ -1771,42 +1766,121 @@ def _get_elegant_font(size: int):
     return ImageFont.load_default()
 
 
-def _add_text_overlay(img_bytes: bytes, title: str) -> bytes:
-    """PIL で画像にタイトルとブランド名をオーバーレイして返す"""
+def _get_jp_font(size: int):
+    """日本語テキスト用フォント（Noto Serif JP）"""
+    from PIL import ImageFont
+    base = os.path.dirname(__file__)
+    candidates = [
+        os.path.join(base, "assets", "fonts", "NotoSerifJP.ttf"),
+        os.path.join(base, "assets", "fonts", "CormorantGaramond-Regular.ttf"),
+        "/System/Library/Fonts/Optima.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSerifCJKjp-Regular.otf",
+        "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+    ]
+    for path in candidates:
+        try:
+            if os.path.exists(path):
+                return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
+                       flavor_jp: str = "", circle_lines: list = None) -> bytes:
+    """参照画像スタイルのエレガントなテキストオーバーレイを追加"""
     if not HAS_PIL:
         return img_bytes
     import io
-    from PIL import Image, ImageDraw, ImageFilter
+    from PIL import Image, ImageDraw
 
     img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
     W, H = img.size
+    s = H / 1024  # スケール係数
+
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    # ── 下部ブランド帯 ──
-    brand_text = "shisha & sweets  MOSH"
-    brand_bar_h = max(80, H // 10)
-    brand_font = _get_elegant_font(max(36, H // 22))
+    has_title = bool(title.strip())
 
-    # グラデーション風の黒帯（下）
-    for i in range(brand_bar_h):
-        alpha = int(200 * (i / brand_bar_h))
-        draw.rectangle([(0, H - brand_bar_h + i), (W, H - brand_bar_h + i + 1)],
-                       fill=(0, 0, 0, alpha))
-    draw.text((W // 2, H - brand_bar_h // 2), brand_text,
-              fill=(255, 255, 255, 240), font=brand_font, anchor="mm")
+    # ── タイトルブロック（左上寄り）──
+    if has_title:
+        # キャッチフレーズ（タイトル上の小さな日本語）
+        if catch_phrase:
+            font_catch = _get_jp_font(int(26 * s))
+            draw.text((int(85 * s), int(168 * s)), catch_phrase,
+                      fill=(255, 255, 255, 210), font=font_catch, anchor="lm")
 
-    # ── タイトル帯（入力されている場合のみ）──
-    if title.strip():
-        title_bar_h = max(100, H // 8)
-        title_font = _get_elegant_font(max(52, H // 14))
+        # 大タイトル（Cormorant Garamond）
+        font_title = _get_title_font(int(128 * s))
+        draw.text((int(75 * s), int(295 * s)), title,
+                  fill=(255, 255, 255, 248), font=font_title, anchor="lm")
 
-        # グラデーション風の黒帯（上）
-        for i in range(title_bar_h):
-            alpha = int(200 * (1 - i / title_bar_h))
-            draw.rectangle([(0, i), (W, i + 1)], fill=(0, 0, 0, alpha))
-        draw.text((W // 2, title_bar_h // 2), title.upper(),
-                  fill=(255, 255, 255, 240), font=title_font, anchor="mm")
+        # 日本語サブタイトル（タイトル直下）
+        if flavor_jp:
+            font_jp = _get_jp_font(int(30 * s))
+            draw.text((int(90 * s), int(375 * s)), flavor_jp,
+                      fill=(255, 255, 255, 210), font=font_jp, anchor="lm")
+
+    # ── 円形バッジ（左中央）──
+    if circle_lines and has_title:
+        cx, cy, r = int(168 * s), int(572 * s), int(112 * s)
+
+        # 半透明の円背景
+        badge_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        badge_draw = ImageDraw.Draw(badge_layer)
+        badge_draw.ellipse(
+            [(cx - r, cy - r), (cx + r, cy + r)],
+            fill=(0, 0, 0, 90)
+        )
+        overlay = Image.alpha_composite(overlay, badge_layer)
+        draw = ImageDraw.Draw(overlay)
+
+        # 円の縁線
+        draw.ellipse(
+            [(cx - r, cy - r), (cx + r, cy + r)],
+            outline=(255, 255, 255, 150), width=max(1, int(1.5 * s))
+        )
+
+        # テキスト
+        font_badge = _get_jp_font(int(22 * s))
+        lh = int(30 * s)
+        total_h = len(circle_lines) * lh
+        y0 = cy - total_h // 2 + lh // 2
+        for i, line in enumerate(circle_lines):
+            draw.text((cx, y0 + i * lh), line,
+                      fill=(255, 255, 255, 230), font=font_badge, anchor="mm")
+
+    # ── 下部：ブランド名 + デコレーションライン + タグライン ──
+    # ブランド名
+    font_brand = _get_title_font(int(36 * s))
+    brand_y = int(888 * s)
+    # 軽いシャドウで視認性を上げる
+    draw.text((W // 2 + 1, brand_y + 1), "shisha & sweets  MOSH",
+              fill=(0, 0, 0, 120), font=font_brand, anchor="mm")
+    draw.text((W // 2, brand_y), "shisha & sweets  MOSH",
+              fill=(255, 255, 255, 235), font=font_brand, anchor="mm")
+
+    # デコレーションライン ──── ◆ ────
+    line_y = int(924 * s)
+    llen = int(115 * s)
+    lw = max(1, int(s))
+    draw.line([(W // 2 - llen - 14, line_y), (W // 2 - 10, line_y)],
+              fill=(255, 255, 255, 170), width=lw)
+    d = int(5 * s)
+    diamond = [
+        (W // 2, line_y - d), (W // 2 + d, line_y),
+        (W // 2, line_y + d), (W // 2 - d, line_y)
+    ]
+    draw.polygon(diamond, fill=(255, 255, 255, 200))
+    draw.line([(W // 2 + 10, line_y), (W // 2 + llen + 14, line_y)],
+              fill=(255, 255, 255, 170), width=lw)
+
+    # タグライン
+    font_tag = _get_jp_font(int(22 * s))
+    draw.text((W // 2, int(960 * s)), "特別な香りを、あなたの時間に",
+              fill=(255, 255, 255, 195), font=font_tag, anchor="mm")
 
     composite = Image.alpha_composite(img, overlay).convert("RGB")
     out = io.BytesIO()
@@ -1818,44 +1892,58 @@ def generate_flavor_image(flavor: str, title: str = ""):
     if not HAS_OPENAI:
         return None
     try:
-        # Claude HaikuでFLAVOR_INGREDIENTSとBACKGROUND_SCENEを決定
+        # Claude HaikuでFLAVOR_INGREDIENTS / BACKGROUND_SCENE / テキスト要素を決定
         flavor_ingredients = f"fresh {flavor} ingredients, sliced fruits, ice cubes"
-        background_scene = f"lush outdoor garden with {flavor}-themed natural scenery"
+        background_scene = f"moody dark studio with {flavor}-themed natural elements"
+        catch_phrase = ""
+        flavor_jp = ""
+        circle_lines: list = []
+
         if HAS_ANTHROPIC:
             v = _anthropic_client.messages.create(
                 model="claude-haiku-4-5",
-                max_tokens=120,
-                system="""You are an art director for premium shisha product photography.
-Given a shisha flavor name, respond in this exact format (English only, be specific and visual):
-FLAVOR_INGREDIENTS: [what fills the glass bowl AND is on the flat-lay, e.g. "sliced lemons, fresh mint sprigs, ice cubes, honey jar, lemon zest"]
-BACKGROUND_SCENE: [outdoor natural environment matching the flavor, e.g. "sunlit lemon grove with lush green trees and dappled light"]""",
+                max_tokens=220,
+                system="""You are an art director for a premium Japanese shisha bar.
+Given a shisha flavor name, respond in this exact format (be specific and visual):
+FLAVOR_INGREDIENTS: [English: what fills the hookah bowl AND flat-lay, e.g. "sliced peaches, fresh mint, ice cubes, honey jar, dried black tea leaves"]
+BACKGROUND_SCENE: [English: moody dark indoor/outdoor scene matching the flavor, e.g. "deep amber candlelit interior with vintage copper tones and soft bokeh"]
+CATCH_PHRASE: [Japanese: elegant 1-line catch copy ≤16 chars, e.g. "やさしい甘さ、心ほどけるひととき"]
+FLAVOR_JP: [Japanese katakana reading of the flavor, e.g. "ピーチティー"]
+CIRCLE_LINE1: [Japanese: short flavor descriptor line 1, ≤10 chars, e.g. "フルーティーな"]
+CIRCLE_LINE2: [Japanese: short flavor descriptor line 2, ≤10 chars, e.g. "ピーチの香りと"]
+CIRCLE_LINE3: [Japanese: short flavor descriptor line 3, ≤10 chars, e.g. "紅茶の深み"]""",
                 messages=[{"role": "user", "content": f"Flavor: {flavor}"}]
             )
             result = v.content[0].text.strip()
+            c_lines = []
             for line in result.splitlines():
                 if line.startswith("FLAVOR_INGREDIENTS:"):
                     flavor_ingredients = line.replace("FLAVOR_INGREDIENTS:", "").strip()
                 elif line.startswith("BACKGROUND_SCENE:"):
                     background_scene = line.replace("BACKGROUND_SCENE:", "").strip()
+                elif line.startswith("CATCH_PHRASE:"):
+                    catch_phrase = line.replace("CATCH_PHRASE:", "").strip()
+                elif line.startswith("FLAVOR_JP:"):
+                    flavor_jp = line.replace("FLAVOR_JP:", "").strip()
+                elif line.startswith("CIRCLE_LINE"):
+                    c_lines.append(line.split(":", 1)[1].strip())
+            circle_lines = c_lines if c_lines else []
 
         prompt = (
-            f"A premium shisha hookah product photo with stunning sizzle appeal. "
-            f"A polished chrome and glass hookah sits center-right, its transparent "
-            f"glass bowl filled with {flavor_ingredients}, ice cubes, and fresh "
-            f"ingredients. Soft white smoke rises elegantly from the top. "
-            f"On the left side, a lush flat-lay arrangement of the same fresh "
-            f"ingredients — sliced fruits, fresh herbs, ice cubes, a small honey "
-            f"jar — scattered on a rustic wooden board with glistening water droplets. "
-            f"One or two glass tumblers filled with fruit-infused water sit among them. "
-            f"Background: {background_scene}, soft natural bokeh lighting. "
-            f"The entire scene is lit with warm golden sunlight from slightly behind, "
-            f"creating a luminous, fresh, and premium atmosphere. "
-            f"No text. No labels. No logos. Photorealistic, ultra-high detail, "
-            f"commercial food photography style, shallow depth of field, "
-            f"vibrant yet natural colors, moisture and freshness emphasized. "
-            f"Dramatic swirling smoke with backlight, volumetric light rays. "
-            f"Shot with Canon EOS R5, 85mm lens, f/1.8 aperture, "
-            f"natural diffused light with reflector fill."
+            f"A premium Japanese shisha hookah product photo, moody and cinematic. "
+            f"A golden ornate hookah sits on the RIGHT side of the frame, "
+            f"with soft white smoke rising elegantly from the top. "
+            f"On the CENTER-LEFT, a beautiful still-life arrangement: "
+            f"{flavor_ingredients}, scattered on a dark rustic tray "
+            f"with glistening water droplets, a crystal glass tumbler. "
+            f"The LEFT third of the image is naturally darker — "
+            f"suitable for text overlay — with soft moody bokeh. "
+            f"Background: {background_scene}. "
+            f"Warm amber and golden tones, dramatic chiaroscuro lighting. "
+            f"No text. No labels. No logos. "
+            f"Photorealistic, ultra-high detail, luxury editorial photography, "
+            f"shallow depth of field, Square 1:1 format. "
+            f"Shot with Canon EOS R5, 85mm f/1.4, soft fill light."
         )
         response = _openai_client.images.generate(
             model="dall-e-3", prompt=prompt,
@@ -1864,7 +1952,7 @@ BACKGROUND_SCENE: [outdoor natural environment matching the flavor, e.g. "sunlit
         import requests as _requests
         img_url = response.data[0].url
         img_bytes = _requests.get(img_url).content
-        return _add_text_overlay(img_bytes, title)
+        return _add_text_overlay(img_bytes, title, catch_phrase, flavor_jp, circle_lines)
     except Exception as e:
         st.error(f"画像生成エラー: {e}")
         return None
