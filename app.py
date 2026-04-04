@@ -1818,29 +1818,30 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
             return any(unicodedata.east_asian_width(c) in ('W', 'F', 'A') for c in t)
         is_jp = _has_wide_chars(title)
         _font_getter = _get_jp_font if is_jp else _get_title_font
-        # 日本語は文字が大きいので初期サイズを小さめに
-        font_size_t = int((96 if is_jp else 128) * s)
+        # 参照画像に合わせ、タイトルは画幅60%以内に収める（余白を大事に）
+        font_size_t = int((80 if is_jp else 128) * s)
         font_title = _font_getter(font_size_t)
-        max_title_w = int(W * 0.85)
+        max_title_w = int(W * 0.62)
         min_size = int(36 * s)
-        for _ in range(25):
+        for _ in range(30):
             try:
                 bbox = draw.textbbox((0, 0), title, font=font_title)
                 text_w = bbox[2] - bbox[0]
             except Exception:
-                text_w = max_title_w + 1  # 失敗したら縮小継続
+                text_w = max_title_w + 1
             if text_w <= max_title_w or font_size_t <= min_size:
                 break
-            font_size_t = max(int(font_size_t * 0.88), min_size)
+            font_size_t = max(int(font_size_t * 0.90), min_size)
             font_title = _font_getter(font_size_t)
         draw.text((int(75 * s), int(295 * s)), title,
                   fill=(255, 255, 255, 248), font=font_title, anchor="lm")
 
-        # 日本語サブタイトル（タイトル直下）
+        # 日本語サブタイトル（タイトル直下）- 文字間スペースを追加して優雅に
         if flavor_jp:
-            font_jp = _get_jp_font(int(30 * s))
-            draw.text((int(90 * s), int(375 * s)), flavor_jp,
-                      fill=(255, 255, 255, 210), font=font_jp, anchor="lm")
+            font_jp = _get_jp_font(int(28 * s))
+            spaced = "  ".join(flavor_jp)  # 文字間にスペース
+            draw.text((int(90 * s), int(378 * s)), spaced,
+                      fill=(255, 255, 255, 200), font=font_jp, anchor="lm")
 
     # ── 円形バッジ（左中央）──
     if circle_lines and has_title:
@@ -1862,9 +1863,25 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
             outline=(255, 255, 255, 150), width=max(1, int(1.5 * s))
         )
 
-        # テキスト
-        font_badge = _get_jp_font(int(22 * s))
-        lh = int(30 * s)
+        # テキスト - 各行が円内に収まるようにフォントサイズ自動縮小
+        max_line_w = int(r * 1.55)  # 円直径の約78%
+        badge_size = int(22 * s)
+        font_badge = _get_jp_font(badge_size)
+        for _ in range(15):
+            too_wide = False
+            for line in circle_lines:
+                try:
+                    bbox = draw.textbbox((0, 0), line, font=font_badge)
+                    if (bbox[2] - bbox[0]) > max_line_w:
+                        too_wide = True
+                        break
+                except Exception:
+                    break
+            if not too_wide or badge_size <= int(14 * s):
+                break
+            badge_size = max(int(badge_size * 0.88), int(14 * s))
+            font_badge = _get_jp_font(badge_size)
+        lh = int(badge_size * 1.45)
         total_h = len(circle_lines) * lh
         y0 = cy - total_h // 2 + lh // 2
         for i, line in enumerate(circle_lines):
