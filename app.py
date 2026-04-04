@@ -850,6 +850,43 @@ def show_home():
                         st.cache_data.clear()
                         st.rerun()
 
+    # ── 手動マージ（owner/manager/executive のみ）──
+    if user["role"] in ("owner", "manager", "executive"):
+        with st.expander("🔗 手動マージ（同一人物の統合）"):
+            st.caption("2名を検索して選択し、どちらかにまとめます。統合元の来店履歴が統合先に移動します。")
+            mc1, mc2 = st.columns(2)
+
+            with mc1:
+                st.markdown("**統合元（消える側）**")
+                ma_search = st.text_input("名前で検索", key="merge_search_a", placeholder="例：てらかど")
+                ma_results = db.get_customers(search=ma_search.strip() or None, limit=20) if ma_search.strip() else []
+                ma_options = {f"{c['name']} / {c['primary_store']} / {c['total_visits']}回": c for c in ma_results}
+                ma_sel = st.selectbox("統合元を選択", ["---"] + list(ma_options.keys()), key="merge_sel_a")
+                cust_a = ma_options.get(ma_sel)
+                if cust_a:
+                    st.info(f"🗑 **{cust_a['name']}**\n{cust_a['primary_store']} / {cust_a.get('rank','–')}ランク / {cust_a['total_visits']}回")
+
+            with mc2:
+                st.markdown("**統合先（残る側）**")
+                mb_search = st.text_input("名前で検索", key="merge_search_b", placeholder="例：てらかど")
+                mb_results = db.get_customers(search=mb_search.strip() or None, limit=20) if mb_search.strip() else []
+                mb_options = {f"{c['name']} / {c['primary_store']} / {c['total_visits']}回": c for c in mb_results}
+                mb_sel = st.selectbox("統合先を選択", ["---"] + list(mb_options.keys()), key="merge_sel_b")
+                cust_b = mb_options.get(mb_sel)
+                if cust_b:
+                    st.success(f"✅ **{cust_b['name']}**\n{cust_b['primary_store']} / {cust_b.get('rank','–')}ランク / {cust_b['total_visits']}回")
+
+            if cust_a and cust_b:
+                if cust_a["id"] == cust_b["id"]:
+                    st.warning("同じ顧客が選択されています")
+                else:
+                    st.markdown(f"**{cust_a['name']}** → **{cust_b['name']}** に統合します")
+                    if st.button("✅ マージ実行", type="primary", key="manual_merge_btn"):
+                        db.merge_customers(cust_a["id"], cust_b["id"], user["username"])
+                        st.cache_data.clear()
+                        st.success(f"✅ {cust_a['name']} を {cust_b['name']} に統合しました")
+                        st.rerun()
+
     # 件数表示
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
