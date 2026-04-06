@@ -2041,12 +2041,38 @@ Rules:
         st.error(f"画像生成エラー: {e}")
         return None
 
+def generate_free_image(user_prompt: str, title: str = ""):
+    """自由プロンプトで画像を生成し、テキストオーバーレイを適用"""
+    if not HAS_OPENAI:
+        return None
+    try:
+        base_prompt = (
+            f"{user_prompt}. "
+            f"Absolutely NO text, NO watermarks, NO logos anywhere. "
+            f"Photorealistic, ultra-high detail, luxury editorial photography, "
+            f"8K resolution, shallow depth of field, commercial retouching."
+        )
+        response = _openai_client.images.generate(
+            model="dall-e-3", prompt=base_prompt,
+            size="1024x1024", quality="hd", n=1,
+        )
+        import requests as _requests
+        img_url = response.data[0].url
+        img_bytes = _requests.get(img_url).content
+        if title.strip():
+            return _add_text_overlay(img_bytes, title)
+        return img_bytes
+    except Exception as e:
+        st.error(f"画像生成エラー: {e}")
+        return None
+
+
 def show_operations():
     user = st.session_state.user
     store = user.get("store", "") or ""
     store_label = store if store else "MOSH"
     st.markdown("### 📢 今日の営業")
-    op_tab1, op_tab2 = st.tabs(["🟢 オープン告知", "🌙 終業報告"])
+    op_tab1, op_tab2, op_tab3 = st.tabs(["🟢 オープン告知", "🌙 終業報告", "🖼 フリー画像生成"])
 
     with op_tab1:
         st.markdown("**今日のおすすめフレーバーを入力してください**")
@@ -2175,6 +2201,31 @@ def show_operations():
             st.markdown("**生成された終業報告：**")
             st.code(st.session_state["ops_report"], language=None)
             st.caption("↑ 右上の📋アイコンをタップしてDiscordに貼り付けてください")
+
+    with op_tab3:
+        st.markdown("**自由にプロンプトを入力して画像を生成できます**")
+        free_prompt = st.text_area(
+            "画像プロンプト",
+            placeholder="例：暗い雰囲気のバーで、レモンとミントが入ったグラスとシーシャが並んでいる写真",
+            height=120, key="free_prompt"
+        )
+        free_title = st.text_input("画像タイトル（任意）",
+            placeholder="例：Lemon Mint、本日のおすすめ", key="free_title")
+        gen_free = st.button("🎨 画像を生成", use_container_width=True,
+                             disabled=not HAS_OPENAI, key="free_gen_btn", type="primary")
+        if gen_free and free_prompt.strip():
+            with st.spinner("画像を生成中...（40〜60秒ほどかかります）"):
+                img_bytes = generate_free_image(free_prompt.strip(), free_title)
+            if img_bytes:
+                st.session_state["free_generated_img"] = img_bytes
+        if "free_generated_img" in st.session_state:
+            st.image(st.session_state["free_generated_img"], use_column_width=True)
+            st.download_button("📥 画像をダウンロード",
+                data=st.session_state["free_generated_img"],
+                file_name=f"mosh_free_{date.today()}.jpg",
+                mime="image/jpeg", use_container_width=True)
+        if not HAS_OPENAI:
+            st.info("💡 画像生成にはOpenAI APIキーの設定が必要です")
 
 # ─────────────────────────────────────────
 # メインルーティング
