@@ -39,6 +39,13 @@ except Exception:
     HAS_OPENAI = False
 
 try:
+    from google import genai
+    _gemini_client = genai.Client(api_key=st.secrets.get("GOOGLE_AI_API_KEY", ""))
+    HAS_GEMINI = bool(st.secrets.get("GOOGLE_AI_API_KEY", ""))
+except Exception:
+    HAS_GEMINI = False
+
+try:
     from PIL import Image, ImageDraw, ImageFont
     HAS_PIL = True
 except Exception:
@@ -1953,8 +1960,31 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
     return out.getvalue()
 
 
+def _generate_with_nano_banana(prompt: str) -> bytes | None:
+    """Nano Banana Pro (Gemini) で画像を生成し、バイトを返す"""
+    from google.genai import types
+    import io as _io
+    response = _gemini_client.models.generate_content(
+        model="gemini-3-pro-image-preview",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_modalities=["IMAGE"],
+            image_config=types.ImageConfig(
+                aspect_ratio="1:1",
+            ),
+        ),
+    )
+    for part in response.candidates[0].content.parts:
+        if part.inline_data is not None:
+            img = Image.open(_io.BytesIO(part.inline_data.data))
+            buf = _io.BytesIO()
+            img.convert("RGB").save(buf, format="JPEG", quality=95)
+            return buf.getvalue()
+    return None
+
+
 def generate_flavor_image(flavor: str, title: str = ""):
-    if not HAS_OPENAI:
+    if not HAS_GEMINI:
         return None
     try:
         # Claude HaikuでFLAVOR_INGREDIENTS / BACKGROUND_SCENE / テキスト要素を決定
@@ -1990,7 +2020,6 @@ Rules:
             c_lines = []
             for line in result.splitlines():
                 def _clean(val: str) -> str:
-                    # "Japanese:" などの余分なプレフィックスを除去
                     import re
                     return re.sub(r'^(Japanese|English)\s*:\s*', '', val).strip().strip('"')
                 if line.startswith("FLAVOR_INGREDIENTS:"):
@@ -2029,13 +2058,10 @@ Rules:
             f"tethered studio with Profoto B10 key light and silver reflector fill. "
             f"8K resolution, commercial retouching, impeccable detail."
         )
-        response = _openai_client.images.generate(
-            model="dall-e-3", prompt=prompt,
-            size="1024x1024", quality="hd", n=1,
-        )
-        import requests as _requests
-        img_url = response.data[0].url
-        img_bytes = _requests.get(img_url).content
+        img_bytes = _generate_with_nano_banana(prompt)
+        if not img_bytes:
+            st.error("画像生成に失敗しました")
+            return None
         return _add_text_overlay(img_bytes, title, catch_phrase, flavor_jp, circle_lines)
     except Exception as e:
         st.error(f"画像生成エラー: {e}")
@@ -2043,7 +2069,7 @@ Rules:
 
 def generate_free_image(user_prompt: str, title: str = ""):
     """自由プロンプトで画像を生成し、テキストオーバーレイを適用"""
-    if not HAS_OPENAI:
+    if not HAS_GEMINI:
         return None
     try:
         base_prompt = (
@@ -2052,13 +2078,10 @@ def generate_free_image(user_prompt: str, title: str = ""):
             f"Photorealistic, ultra-high detail, luxury editorial photography, "
             f"8K resolution, shallow depth of field, commercial retouching."
         )
-        response = _openai_client.images.generate(
-            model="dall-e-3", prompt=base_prompt,
-            size="1024x1024", quality="hd", n=1,
-        )
-        import requests as _requests
-        img_url = response.data[0].url
-        img_bytes = _requests.get(img_url).content
+        img_bytes = _generate_with_nano_banana(base_prompt)
+        if not img_bytes:
+            st.error("画像生成に失敗しました")
+            return None
         if title.strip():
             return _add_text_overlay(img_bytes, title)
         return img_bytes
@@ -2113,7 +2136,7 @@ def show_operations():
         with col1:
             gen_text = st.button("📝 告知文を生成", use_container_width=True, type="primary")
         with col2:
-            gen_img = st.button("🎨 画像を生成", use_container_width=True, disabled=not HAS_OPENAI)
+            gen_img = st.button("🎨 画像を生成", use_container_width=True, disabled=not HAS_GEMINI)
         if gen_text and flavor_input:
             with st.spinner("告知文を生成中..."):
                 text = generate_open_text(flavor_input, selected_style)
@@ -2138,8 +2161,8 @@ def show_operations():
                 data=st.session_state["ops_generated_img"],
                 file_name=f"mosh_{fname}_{date.today()}.jpg",
                 mime="image/jpeg", use_container_width=True)
-        if not HAS_OPENAI:
-            st.info("💡 画像生成にはOpenAI APIキーの設定が必要です")
+        if not HAS_GEMINI:
+            st.info("💡 画像生成にはGoogle AI APIキーの設定が必要です")
 
     with op_tab2:
         col_title, col_clear_all = st.columns([3, 1])
@@ -2224,8 +2247,8 @@ def show_operations():
                 data=st.session_state["free_generated_img"],
                 file_name=f"mosh_free_{date.today()}.jpg",
                 mime="image/jpeg", use_container_width=True)
-        if not HAS_OPENAI:
-            st.info("💡 画像生成にはOpenAI APIキーの設定が必要です")
+        if not HAS_GEMINI:
+            st.info("💡 画像生成にはGoogle AI APIキーの設定が必要です")
 
 # ─────────────────────────────────────────
 # メインルーティング
