@@ -38,12 +38,25 @@ try:
 except Exception:
     HAS_OPENAI = False
 
-try:
-    from google import genai
-    _gemini_client = genai.Client(api_key=st.secrets.get("GOOGLE_AI_API_KEY", ""))
-    HAS_GEMINI = bool(st.secrets.get("GOOGLE_AI_API_KEY", ""))
-except Exception:
-    HAS_GEMINI = False
+_GOOGLE_AI_KEY = st.secrets.get("GOOGLE_AI_API_KEY", "")
+HAS_GEMINI = False
+_gemini_client = None
+_gemini_use_new_sdk = False
+if _GOOGLE_AI_KEY:
+    try:
+        from google import genai
+        _gemini_client = genai.Client(api_key=_GOOGLE_AI_KEY)
+        HAS_GEMINI = True
+        _gemini_use_new_sdk = True
+    except Exception:
+        try:
+            import google.generativeai as _genai_legacy
+            _genai_legacy.configure(api_key=_GOOGLE_AI_KEY)
+            _gemini_client = _genai_legacy
+            HAS_GEMINI = True
+            _gemini_use_new_sdk = False
+        except Exception:
+            pass
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -1962,24 +1975,41 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
 
 def _generate_with_nano_banana(prompt: str) -> bytes | None:
     """Nano Banana Pro (Gemini) で画像を生成し、バイトを返す"""
-    from google.genai import types
     import io as _io
-    response = _gemini_client.models.generate_content(
-        model="gemini-3-pro-image-preview",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_modalities=["IMAGE"],
-            image_config=types.ImageConfig(
-                aspect_ratio="1:1",
+
+    if _gemini_use_new_sdk:
+        # 新SDK: google.genai.Client
+        from google.genai import types
+        response = _gemini_client.models.generate_content(
+            model="gemini-3-pro-image-preview",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(
+                    aspect_ratio="1:1",
+                ),
             ),
-        ),
-    )
-    for part in response.candidates[0].content.parts:
-        if part.inline_data is not None:
-            img = Image.open(_io.BytesIO(part.inline_data.data))
-            buf = _io.BytesIO()
-            img.convert("RGB").save(buf, format="JPEG", quality=95)
-            return buf.getvalue()
+        )
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                img = Image.open(_io.BytesIO(part.inline_data.data))
+                buf = _io.BytesIO()
+                img.convert("RGB").save(buf, format="JPEG", quality=95)
+                return buf.getvalue()
+    else:
+        # 旧SDK: google.generativeai
+        model = _gemini_client.GenerativeModel("gemini-2.0-flash-exp")
+        response = model.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "image/jpeg"},
+        )
+        if response.candidates and response.candidates[0].content.parts:
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, "inline_data") and part.inline_data:
+                    img = Image.open(_io.BytesIO(part.inline_data.data))
+                    buf = _io.BytesIO()
+                    img.convert("RGB").save(buf, format="JPEG", quality=95)
+                    return buf.getvalue()
     return None
 
 
