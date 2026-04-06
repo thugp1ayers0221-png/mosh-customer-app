@@ -1998,11 +1998,11 @@ def _generate_with_nano_banana(prompt: str) -> bytes | None:
                 return buf.getvalue()
     else:
         # 旧SDK: google.generativeai
-        model = _gemini_client.GenerativeModel("gemini-3.1-flash-image-preview")
-        response = model.generate_content(
-            prompt,
-            generation_config={"response_mime_type": "image/jpeg"},
+        model = _gemini_client.GenerativeModel(
+            "gemini-3.1-flash-image-preview",
+            generation_config={"response_modalities": ["IMAGE"]},
         )
+        response = model.generate_content(prompt)
         if response.candidates and response.candidates[0].content.parts:
             for part in response.candidates[0].content.parts:
                 if hasattr(part, "inline_data") and part.inline_data:
