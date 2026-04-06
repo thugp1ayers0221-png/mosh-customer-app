@@ -1974,14 +1974,14 @@ def _add_text_overlay(img_bytes: bytes, title: str, catch_phrase: str = "",
 
 
 def _generate_with_nano_banana(prompt: str) -> bytes | None:
-    """Nano Banana Pro (Gemini) で画像を生成し、バイトを返す"""
+    """Nano Banana 2 (gemini-3.1-flash-image-preview) で画像を生成し、バイトを返す"""
     import io as _io
 
     if _gemini_use_new_sdk:
         # 新SDK: google.genai.Client
         from google.genai import types
         response = _gemini_client.models.generate_content(
-            model="gemini-3-pro-image-preview",
+            model="gemini-3.1-flash-image-preview",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
@@ -1998,7 +1998,7 @@ def _generate_with_nano_banana(prompt: str) -> bytes | None:
                 return buf.getvalue()
     else:
         # 旧SDK: google.generativeai
-        model = _gemini_client.GenerativeModel("gemini-2.0-flash-exp")
+        model = _gemini_client.GenerativeModel("gemini-3.1-flash-image-preview")
         response = model.generate_content(
             prompt,
             generation_config={"response_mime_type": "image/jpeg"},
