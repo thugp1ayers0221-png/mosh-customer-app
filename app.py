@@ -1816,8 +1816,8 @@ def generate_open_text(flavor: str, style_key: str) -> str:
 def generate_discord_report(store: str, date_str: str, flavor: str,
                              new_count: int, repeat_count: int,
                              visitor_names: str, done_today: str,
-                             todo_tomorrow: str, notice: str,
-                             register_diff: str) -> str:
+                             want_buy: str, todo_tomorrow: str,
+                             notice: str, register_diff: str) -> str:
     total = new_count + repeat_count
     lines = [
         f"**終業報告** {date_str}",
@@ -1827,6 +1827,11 @@ def generate_discord_report(store: str, date_str: str, flavor: str,
     for item in done_today.strip().splitlines():
         if item.strip():
             lines.append(f"・{item.strip()}")
+    if want_buy.strip():
+        lines += [f"", f"【無いものや買って欲しいもの】"]
+        for item in want_buy.strip().splitlines():
+            if item.strip():
+                lines.append(f"・{item.strip()}")
     lines += [f"", f"【明日やってほしいこと】"]
     for item in todo_tomorrow.strip().splitlines():
         if item.strip():
@@ -2311,6 +2316,8 @@ def show_operations():
         )
         done_today    = st.text_area("今日やったこと（1行1項目）",
             placeholder="・清掃\n・SNS投稿", height=100, key="ops_done")
+        want_buy      = st.text_area("無いものや買って欲しいもの（1行1項目）",
+            placeholder="・炭\n・フレーバー○○", height=80, key="ops_want_buy")
         todo_tomorrow = st.text_area("明日やってほしいこと（1行1項目）",
             placeholder="・○○の補充", height=80, key="ops_todo")
         notice        = st.text_area("連絡事項（営業の様子・気づき）",
@@ -2336,7 +2343,7 @@ def show_operations():
             report = generate_discord_report(
                 store_label, today_str, flavor_for_report,
                 int(new_count), int(repeat_count),
-                _add_san(all_visitor_names), done_today, todo_tomorrow, notice, register_diff)
+                _add_san(all_visitor_names), done_today, want_buy, todo_tomorrow, notice, register_diff)
             st.session_state["ops_report"] = report
         if "ops_report" in st.session_state:
             st.markdown("**生成された終業報告：**")
