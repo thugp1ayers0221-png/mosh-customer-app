@@ -132,18 +132,43 @@ st.markdown("""
 /* Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
 
-/* カラー変数 */
+/* Stripe-inspired MOSH Design System */
 :root {
-  --mosh-sky:    #A8D8EA;
-  --mosh-cream:  #F5EFE0;
-  --mosh-brown:  #6B4226;
-  --mosh-dark:   #2D1F0F;
-  --mosh-green:  #5B8F5F;
-  --rank-s:      #C8922A;
-  --rank-a:      #4AA8D8;
-  --rank-b:      #c8b89a;
-  --rank-c:      #AAAAAA;
-  --bg:          #F0F7FA;
+  /* Brand */
+  --mosh-primary:       #5BA4C9;
+  --mosh-primary-hover: #4A93B8;
+  --mosh-primary-light: #E8F4FA;
+  --mosh-sky:           #A8D8EA;
+  --mosh-cream:         #F5EFE0;
+  --mosh-brown:         #6B4226;
+  --mosh-dark:          #2D1F0F;
+  --mosh-green:         #5B8F5F;
+
+  /* Surfaces */
+  --bg:             #FFFDF7;
+  --surface:        #FFFFFF;
+  --surface-hover:  #FAFAF7;
+  --surface-muted:  #F7F5F0;
+
+  /* Borders */
+  --border:         #E8E0D4;
+  --border-light:   #F0EBE3;
+
+  /* Shadows (warm brown-tinted, Stripe multi-layer) */
+  --shadow-1:       rgba(107,66,38,0.10);
+  --shadow-2:       rgba(0,0,0,0.04);
+  --shadow-hover:   rgba(107,66,38,0.18);
+
+  /* Text */
+  --text-primary:   #2D1F0F;
+  --text-secondary: #6B7B8D;
+  --text-tertiary:  #9E8B7D;
+
+  /* Rank (unchanged) */
+  --rank-s:  #C8922A;
+  --rank-a:  #4AA8D8;
+  --rank-b:  #c8b89a;
+  --rank-c:  #AAAAAA;
 }
 
 /* 上部余白を削除 */
@@ -160,22 +185,24 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 .stApp {
   background-color: var(--bg);
   font-family: 'Noto Sans JP', sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ヘッダーバー */
+/* ヘッダーバー (Stripe-style clean header) */
 .mosh-header {
-  background: linear-gradient(135deg, var(--mosh-sky) 0%, #C5E8F5 100%);
-  padding: 16px 20px 12px;
-  border-radius: 0 0 20px 20px;
+  background: var(--surface);
+  padding: 14px 20px;
+  border-radius: 0;
   margin: -1rem -1rem 1.5rem;
   display: flex;
   align-items: center;
   gap: 12px;
-  box-shadow: 0 2px 12px rgba(106,66,38,0.12);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 3px var(--shadow-2), 0 1px 2px var(--shadow-1);
 }
 .mosh-logo {
   font-size: 1.6rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--mosh-dark);
   letter-spacing: -0.5px;
   line-height: 1;
@@ -183,40 +210,50 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 .mosh-logo span {
   font-size: 0.75rem;
   font-weight: 400;
-  color: var(--mosh-brown);
+  color: var(--text-secondary);
   display: block;
   letter-spacing: 0.5px;
 }
 .mosh-user-badge {
   margin-left: auto;
   font-size: 0.8rem;
-  background: white;
+  background: var(--surface-muted);
   padding: 4px 12px;
-  border-radius: 20px;
+  border-radius: 4px;
   color: var(--mosh-brown);
   font-weight: 500;
+  border: 1px solid var(--border-light);
 }
 
-/* 検索バー */
+/* 検索バー (Stripe-style) */
 .search-wrap input {
   font-size: 1rem !important;
-  border-radius: 12px !important;
-  border: 2px solid var(--mosh-sky) !important;
+  border-radius: 6px !important;
+  border: 1px solid var(--border) !important;
   padding: 10px 16px !important;
+  transition: border-color 0.15s, box-shadow 0.15s !important;
+}
+.search-wrap input:focus {
+  border-color: var(--mosh-primary) !important;
+  box-shadow: 0 0 0 3px rgba(91,164,201,0.15) !important;
 }
 
-/* カード（ランク色帯つき） */
+/* カード（ランク色帯つき - Stripe shadow system） */
 .customer-card {
-  background: white;
-  border-radius: 14px;
+  background: var(--surface);
+  border-radius: 6px;
   margin-bottom: 8px;
-  box-shadow: 0 1px 6px rgba(106,66,38,0.08);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px var(--shadow-2), 0 1px 2px var(--shadow-1);
   display: flex;
   overflow: hidden;
   cursor: pointer;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s, border-color 0.15s;
 }
-.customer-card:active { box-shadow: 0 2px 10px rgba(106,66,38,0.18); }
+.customer-card:active {
+  box-shadow: 0 4px 12px var(--shadow-hover), 0 2px 4px var(--shadow-2);
+  border-color: var(--mosh-primary);
+}
 .card-rank-bar {
   width: 6px;
   flex-shrink: 0;
@@ -263,9 +300,9 @@ div[class*="appview-container"] { padding-top: 0 !important; }
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--mosh-brown);
-  background: var(--mosh-cream);
+  background: var(--surface-muted);
   padding: 1px 7px;
-  border-radius: 8px;
+  border-radius: 4px;
 }
 .card-days-ago {
   font-size: 0.75rem;
@@ -282,11 +319,11 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 }
 .card-list .stButton button {
   text-align: left !important;
-  background: white !important;
-  border: 1px solid #eee !important;
-  border-radius: 0 12px 12px 0 !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 0 6px 6px 0 !important;
   padding: 10px 14px !important;
-  box-shadow: 0 1px 4px rgba(106,66,38,0.07) !important;
+  box-shadow: 0 1px 2px var(--shadow-2) !important;
   height: auto !important;
   min-height: 64px !important;
   white-space: pre-line !important;
@@ -295,24 +332,24 @@ div[class*="appview-container"] { padding-top: 0 !important; }
   line-height: 1.6 !important;
 }
 .card-list .stButton button:hover {
-  background: #fafafa !important;
-  box-shadow: 0 2px 8px rgba(106,66,38,0.12) !important;
+  background: var(--surface-hover) !important;
+  box-shadow: 0 2px 6px var(--shadow-1), 0 1px 2px var(--shadow-2) !important;
 }
 
-/* ランクバッジ */
+/* ランクバッジ (Stripe-style: 4px radius, semi-transparent) */
 .rank-badge {
   display: inline-block;
   padding: 2px 10px;
-  border-radius: 20px;
+  border-radius: 4px;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.5px;
 }
 .rank-V { background: linear-gradient(135deg,#6B21A8,#A855F7); color: white; letter-spacing:1px; }
-.rank-S { background: var(--rank-s); color: #fff; }
-.rank-A { background: var(--rank-a); color: #fff; }
-.rank-B { background: var(--rank-b); color: #6B4226; }
-.rank-C { background: var(--rank-c); color: #555; }
+.rank-S { background: rgba(200,146,42,0.15); color: #92690C; border: 1px solid rgba(200,146,42,0.3); }
+.rank-A { background: rgba(74,168,216,0.15); color: #1A5F80; border: 1px solid rgba(74,168,216,0.3); }
+.rank-B { background: rgba(200,184,154,0.2); color: #6B4226; border: 1px solid rgba(200,184,154,0.4); }
+.rank-C { background: rgba(170,170,170,0.15); color: #555; border: 1px solid rgba(170,170,170,0.3); }
 
 /* トレンド表示 */
 .trend-up   { color: #16A34A; font-weight:700; font-size:1rem; }
@@ -323,7 +360,7 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 .top-change-alert {
   background: #FEE2E2;
   border: 2px solid #EF4444;
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 10px 14px;
   color: #991B1B;
   font-weight: 700;
@@ -333,7 +370,7 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 .top-change-ok {
   background: #F0FDF4;
   border: 1.5px solid #86EFAC;
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 10px 14px;
   color: #166534;
   text-align: center;
@@ -342,76 +379,88 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 
 /* フィルターバー */
 .filter-bar {
-  background: var(--mosh-cream);
-  border-radius: 12px;
+  background: var(--surface-muted);
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
   padding: 12px 14px;
   margin-bottom: 16px;
 }
 
-/* メトリクスカード */
+/* メトリクスカード (Stripe-style) */
 .metric-card {
-  background: white;
-  border-radius: 12px;
+  background: var(--surface);
+  border-radius: 6px;
   padding: 14px 16px;
   text-align: center;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px var(--shadow-2), 0 1px 2px var(--shadow-1);
 }
 .metric-value {
   font-size: 2rem;
-  font-weight: 700;
-  color: var(--mosh-brown);
+  font-weight: 300;
+  color: var(--text-primary);
   line-height: 1.1;
+  letter-spacing: -0.5px;
 }
 .metric-label {
-  font-size: 0.78rem;
-  color: #888;
-  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-/* ナビゲーションタブ */
+/* ナビゲーションタブ (Stripe underline-style) */
 .nav-tabs {
   display: flex;
-  gap: 8px;
+  gap: 0;
   margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
 }
 .nav-tab {
   flex: 1;
   text-align: center;
   padding: 10px 8px;
-  border-radius: 10px;
+  border-radius: 0;
   font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
-  background: white;
-  color: #888;
-  border: 1.5px solid #eee;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
 }
 .nav-tab.active {
-  background: var(--mosh-sky);
-  color: var(--mosh-dark);
-  border-color: var(--mosh-sky);
+  background: transparent;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--mosh-primary);
   font-weight: 700;
 }
 
-/* 顧客詳細 */
+/* 顧客詳細 (Stripe-style card) */
 .customer-header {
-  background: linear-gradient(135deg, var(--mosh-cream), white);
-  border-radius: 14px;
+  background: var(--surface);
+  border-radius: 6px;
   padding: 18px;
   margin-bottom: 14px;
-  border: 1.5px solid #e8ddd0;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px var(--shadow-2), 0 1px 2px var(--shadow-1);
 }
 .customer-name {
   font-size: 1.4rem;
-  font-weight: 700;
-  color: var(--mosh-dark);
+  font-weight: 300;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
 }
 .visit-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 8px 0;
-  border-bottom: 1px solid #f0e8e0;
+  border-bottom: 1px solid var(--border-light);
   font-size: 0.85rem;
 }
 .visit-date { color: var(--mosh-brown); font-weight: 500; }
@@ -423,55 +472,71 @@ div[class*="appview-container"] { padding-top: 0 !important; }
 .cross-store-banner {
   background: #FFF3CD;
   border: 1px solid #FBBF24;
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 10px 14px;
   font-size: 0.82rem;
   color: #92400E;
   margin-bottom: 12px;
 }
 
-/* ログイン画面 */
+/* ログイン画面 (Stripe-style) */
 .login-wrap {
   max-width: 360px;
   margin: 60px auto 0;
   padding: 32px 28px;
-  background: white;
-  border-radius: 20px;
-  box-shadow: 0 4px 24px rgba(106,66,38,0.12);
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 6px var(--shadow-2), 0 10px 20px var(--shadow-1);
 }
 .login-logo {
   text-align: center;
   font-size: 2rem;
-  font-weight: 700;
-  color: var(--mosh-dark);
+  font-weight: 300;
+  color: var(--text-primary);
   margin-bottom: 6px;
+  letter-spacing: -0.5px;
 }
 .login-sub {
   text-align: center;
   font-size: 0.8rem;
-  color: var(--mosh-brown);
+  color: var(--text-secondary);
   margin-bottom: 24px;
 }
 
-/* Streamlitデフォルト上書き */
+/* Streamlitデフォルト上書き (Stripe-style) */
 .stButton > button {
-  border-radius: 10px !important;
+  border-radius: 6px !important;
   font-family: 'Noto Sans JP', sans-serif !important;
   font-weight: 500 !important;
+  transition: box-shadow 0.15s, filter 0.15s !important;
+}
+/* Primary button */
+[data-testid="baseButton-primary"] {
+  background-color: var(--mosh-primary) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 3px var(--shadow-1), 0 1px 2px var(--shadow-2) !important;
+}
+[data-testid="baseButton-primary"]:hover {
+  background-color: var(--mosh-primary-hover) !important;
+  box-shadow: 0 4px 8px var(--shadow-hover), 0 2px 4px var(--shadow-2) !important;
 }
 /* 顧客カードボタン 共通 */
 [data-testid="baseButton-secondary"] {
   width: 100% !important;
-  border-radius: 12px !important;
+  border-radius: 6px !important;
   padding: 12px 16px !important;
   text-align: center !important;
   font-size: 15px !important;
   font-weight: 600 !important;
   line-height: 1.6 !important;
   min-height: 56px !important;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.08) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 1px 2px var(--shadow-2) !important;
   margin-bottom: 6px !important;
-  transition: filter 0.15s ease !important;
+  transition: box-shadow 0.15s, filter 0.15s ease !important;
 }
 [data-testid="baseButton-secondary"] p {
   white-space: pre-line !important;
@@ -479,7 +544,8 @@ div[class*="appview-container"] { padding-top: 0 !important; }
   margin: 0 !important;
 }
 [data-testid="baseButton-secondary"]:hover {
-  filter: brightness(0.94) !important;
+  box-shadow: 0 2px 6px var(--shadow-1), 0 1px 2px var(--shadow-2) !important;
+  filter: brightness(0.97) !important;
 }
 /* ランク別カラー - stElementContainerレベルで:has()を使用（DOM構造確認済み）*/
 div[data-testid="stElementContainer"]:has(.rank-s) + div[data-testid="stElementContainer"] button,
@@ -497,11 +563,33 @@ div[data-testid="stElementContainer"]:has(.rank-b) + div[data-testid="stElementC
 }
 .stSelectbox > div > div,
 .stTextInput > div > div > input {
-  border-radius: 10px !important;
+  border-radius: 6px !important;
+  border-color: var(--border) !important;
   font-family: 'Noto Sans JP', sans-serif !important;
+  transition: border-color 0.15s, box-shadow 0.15s !important;
 }
+.stSelectbox > div > div:focus-within,
+.stTextInput > div > div > input:focus {
+  border-color: var(--mosh-primary) !important;
+  box-shadow: 0 0 0 3px rgba(91,164,201,0.15) !important;
+}
+/* Streamlit tabs (Stripe underline) */
 div[data-testid="stTabs"] button {
   font-family: 'Noto Sans JP', sans-serif !important;
+  border-radius: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  background: transparent !important;
+  font-weight: 500 !important;
+  color: var(--text-secondary) !important;
+  transition: color 0.15s, border-color 0.15s !important;
+}
+div[data-testid="stTabs"] button[aria-selected="true"] {
+  border-bottom: 2px solid var(--mosh-primary) !important;
+  color: var(--text-primary) !important;
+  font-weight: 700 !important;
+}
+div[data-testid="stTabs"] [data-testid="stMarkdownContainer"] {
+  color: inherit !important;
 }
 
 /* ─── Streamlit UI要素を非表示（GitHub/Fork/デプロイ/フッター全て）─── */
@@ -538,11 +626,11 @@ div[data-testid="stAppRunningIcon"] { display: none !important; }
 
 /* ─── MOSHローディングアニメーション ─── */
 @keyframes mosh-wobble {
-  0%   { transform: rotate(-8deg) scale(1);   }
-  25%  { transform: rotate( 8deg) scale(1.08);}
-  50%  { transform: rotate(-5deg) scale(1);   }
-  75%  { transform: rotate( 5deg) scale(1.05);}
-  100% { transform: rotate(-8deg) scale(1);   }
+  0%   { transform: rotate(-5deg) scale(1);   }
+  25%  { transform: rotate( 5deg) scale(1.04);}
+  50%  { transform: rotate(-3deg) scale(1);   }
+  75%  { transform: rotate( 3deg) scale(1.02);}
+  100% { transform: rotate(-5deg) scale(1);   }
 }
 @keyframes mosh-float {
   0%,100% { transform: translateY(0);  }
@@ -559,7 +647,7 @@ div[data-testid="stAppRunningIcon"] { display: none !important; }
 [data-testid="stSpinner"] > div > p {
   font-family: 'Noto Sans JP', sans-serif !important;
   font-size: 0.85rem !important;
-  color: var(--mosh-brown) !important;
+  color: var(--text-secondary) !important;
   margin-top: 8px !important;
 }
 </style>
@@ -578,8 +666,8 @@ if _logo_b64:
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
-  border-radius: 16px;
-  animation: mosh-wobble 0.6s ease-in-out infinite, mosh-float 1.4s ease-in-out infinite;
+  border-radius: 8px;
+  animation: mosh-wobble 0.8s ease-in-out infinite, mosh-float 1.4s ease-in-out infinite;
   margin: 0 auto 8px;
 }}
 </style>
@@ -592,7 +680,7 @@ else:
   font-size: 3rem;
   display: block;
   text-align: center;
-  animation: mosh-wobble 0.6s ease-in-out infinite, mosh-float 1.4s ease-in-out infinite;
+  animation: mosh-wobble 0.8s ease-in-out infinite, mosh-float 1.4s ease-in-out infinite;
   margin-bottom: 8px;
 }
 </style>
@@ -1045,8 +1133,8 @@ def show_detail():
             fig_dow = go.Figure(go.Bar(
                 x=list(stats["by_dow"].keys()),
                 y=list(stats["by_dow"].values()),
-                marker_color="#A8D8EA",
-                marker_line_color="#6B4226",
+                marker_color="#5BA4C9",
+                marker_line_color="#4A93B8",
                 marker_line_width=1,
             ))
             fig_dow.update_layout(
@@ -1066,8 +1154,8 @@ def show_detail():
             vals   = list(stats["by_month"].values())
             fig_m = go.Figure(go.Bar(
                 x=months, y=vals,
-                marker_color="#F5EFE0",
-                marker_line_color="#6B4226",
+                marker_color="#E8F4FA",
+                marker_line_color="#5BA4C9",
                 marker_line_width=1.5,
             ))
             fig_m.update_layout(
@@ -1273,7 +1361,7 @@ def show_dashboard():
             plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=50,b=10,l=10,r=10),
             height=280,
-            font=dict(family="Noto Sans JP", color="#4A3728"),
+            font=dict(family="Noto Sans JP", color="#2D1F0F"),
             showlegend=False,
         )
         st.plotly_chart(fig, use_container_width=True,
@@ -1297,33 +1385,33 @@ def show_dashboard():
             new_c  = ss.get("new_total", 0)
             rep_b  = ss.get("repeat_b", 0)
             total  = new_c + rep_b
-            color  = store_colors.get(store, "#A8D8EA")
+            color  = store_colors.get(store, "#5BA4C9")
             st.markdown(f"""
             <div style="
-              background:#fff;
-              border:1px solid #e8ddd4;
-              border-left:5px solid {color};
-              border-radius:10px;
+              background:#FFFFFF;
+              border:1px solid #E8E0D4;
+              border-left:4px solid {color};
+              border-radius:6px;
               padding:14px 18px;
               margin-bottom:10px;
-              box-shadow:0 1px 4px rgba(106,66,38,0.07);
+              box-shadow:0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(107,66,38,0.10);
               width:100%;
               box-sizing:border-box;
             ">
-              <div style="font-size:1.05rem;font-weight:700;color:#4A3728;margin-bottom:8px;">
+              <div style="font-size:1.05rem;font-weight:600;color:#2D1F0F;margin-bottom:8px;">
                 🏪 {store}
               </div>
               <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:flex-start;">
                 <div style="text-align:center;flex:1;min-width:0;">
-                  <div style="font-size:1.2rem;font-weight:700;color:#FF8C69;">{new_c}</div>
+                  <div style="font-size:1.2rem;font-weight:300;color:#FF8C69;">{new_c}</div>
                   <div style="font-size:0.68rem;color:#9E8B7D;">新規</div>
                 </div>
                 <div style="text-align:center;flex:1;min-width:0;">
-                  <div style="font-size:1.2rem;font-weight:700;color:#52D68A;">{rep_b}</div>
+                  <div style="font-size:1.2rem;font-weight:300;color:#52D68A;">{rep_b}</div>
                   <div style="font-size:0.68rem;color:#9E8B7D;">リピーター</div>
                 </div>
-                <div style="text-align:center;flex:1;min-width:0;padding-left:8px;border-left:1px solid #e8ddd4;">
-                  <div style="font-size:1.3rem;font-weight:800;color:#4A3728;">{total}</div>
+                <div style="text-align:center;flex:1;min-width:0;padding-left:8px;border-left:1px solid #E8E0D4;">
+                  <div style="font-size:1.3rem;font-weight:300;color:#2D1F0F;">{total}</div>
                   <div style="font-size:0.68rem;color:#9E8B7D;">合計</div>
                 </div>
               </div>
@@ -1342,7 +1430,7 @@ def show_dashboard():
         # 最大値の曜日を強調
         max_val = max(totals) if totals else 1
         bar_colors = [
-            "#FF6B35" if v == max_val else "#A8D8EA"
+            "#FF6B35" if v == max_val else "#5BA4C9"
             for v in totals
         ]
 
@@ -1353,7 +1441,7 @@ def show_dashboard():
             marker_color=bar_colors,
             text=[f"{v:.1f}" for v in totals],
             textposition="outside",
-            textfont=dict(size=11, color="#4A3728"),
+            textfont=dict(size=11, color="#2D1F0F"),
             hovertemplate="<b>%{x}曜日</b><br>平均合計: %{y:.1f}人<extra></extra>",
             name="合計",
         ))
@@ -1362,9 +1450,9 @@ def show_dashboard():
             plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(t=20, b=10, l=10, r=10),
             height=220,
-            font=dict(family="Noto Sans JP", color="#4A3728", size=12),
-            xaxis=dict(showgrid=False, tickfont=dict(size=14, color="#4A3728")),
-            yaxis=dict(showgrid=True, gridcolor="#f0e8df", zeroline=False),
+            font=dict(family="Noto Sans JP", color="#2D1F0F", size=12),
+            xaxis=dict(showgrid=False, tickfont=dict(size=14, color="#2D1F0F")),
+            yaxis=dict(showgrid=True, gridcolor="#F0EBE3", zeroline=False),
             showlegend=False,
         )
         st.plotly_chart(fig_wd, use_container_width=True,
