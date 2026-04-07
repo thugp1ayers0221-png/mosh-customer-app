@@ -2310,8 +2310,8 @@ def show_operations():
         with col_b:
             repeat_count = st.number_input("リピート来店", min_value=0, step=1, key="ops_repeat")
         all_visitor_names = st.text_area(
-            "来店者（読点・改行で区切る）",
-            placeholder="てらかどさん、かいとさん\nもひかんさん",
+            "来店者（読点・改行で区切る）※「さん」は自動で付きます",
+            placeholder="てらかど、かいと\nもひかん",
             height=80, key="ops_visitor_search"
         )
         done_today    = st.text_area("今日やったこと（1行1項目）",
