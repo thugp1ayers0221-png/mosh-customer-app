@@ -1526,7 +1526,10 @@ def show_user_management():
         store_str = inv_store if inv_store else "全店舗"
         st.success("✅ 招待URLを発行しました（有効期限: 7日間）")
         st.code(invite_url, language=None)
-        st.caption(f"権限: {role_jp}　店舗: {store_str}　← このURLをLINE/Discordで送ってください")
+        if inv_role == "staff":
+            st.caption(f"権限: {role_jp}　店舗: {store_str}　← このURL1つで複数人が登録できます")
+        else:
+            st.caption(f"権限: {role_jp}　店舗: {store_str}　← このURLをLINE/Discordで送ってください")
 
 # ─────────────────────────────────────────
 # 今日の営業（告知文・終業報告生成）

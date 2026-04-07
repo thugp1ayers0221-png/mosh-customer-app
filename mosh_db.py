@@ -667,21 +667,31 @@ def create_invitation(role: str, store: str = "") -> str:
 
 
 def get_invitation(token: str):
-    """招待トークンを検証して {role, store} を返す。無効なら None"""
+    """招待トークンを検証して {role, store} を返す。無効なら None
+    staffロールの招待は複数人で使い回せる（used チェックをスキップ）"""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT * FROM invitations
-                WHERE token=%s AND used=0 AND expires_at > NOW()
+                WHERE token=%s AND expires_at > NOW()
             """, (token,))
             row = cur.fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            d = dict(row)
+            if d["role"] != "staff" and d["used"]:
+                return None
+            return d
 
 
 def use_invitation(token: str):
-    """招待トークンを使用済みにする"""
+    """招待トークンを使用済みにする（staffロールは使い回し可能なので更新しない）"""
     with get_conn() as conn:
         with conn.cursor() as cur:
+            cur.execute("SELECT role FROM invitations WHERE token=%s", (token,))
+            row = cur.fetchone()
+            if row and row["role"] == "staff":
+                return
             cur.execute("UPDATE invitations SET used=1 WHERE token=%s", (token,))
 
 
