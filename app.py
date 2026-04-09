@@ -84,7 +84,7 @@ if "db_migrated" not in st.session_state:
 
 # ─── キャッシュ付きDB取得 ───
 @st.cache_data(ttl=300, show_spinner=False)
-def cached_get_customers(store=None, period=None, rank=None, search=None, limit=200):
+def cached_get_customers(store=None, period=None, rank=None, search=None, limit=100):
     return db.get_customers(store=store, period=period, rank=rank, search=search, limit=limit)
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -936,9 +936,9 @@ def show_home():
     if not search_q and period_q:
         customers = [c for c in customers if (c.get("period_visits") or 0) > 0]
 
-    # S候補の通知（専用軽量クエリ）
-    s_candidates = cached_get_s_candidates()
-    if s_candidates and user["role"] in ("owner","manager","executive"):
+    # S候補の通知（専用軽量クエリ）— スタッフには非表示
+    s_candidates = cached_get_s_candidates() if user["role"] in ("owner","manager","executive") else []
+    if s_candidates:
         with st.expander(f"⚠️ Sランク候補 {len(s_candidates)}名（来店10回以上・未昇格）"):
             # 一括昇格ボタン
             if user["role"] in ("owner","executive"):
@@ -958,8 +958,8 @@ def show_home():
                         st.cache_data.clear()
                         st.rerun()
 
-    # ── 手動マージ（owner/manager/executive のみ）──
-    if user["role"] in ("owner", "manager", "executive"):
+    # ── 手動マージ（owner/manager のみ）──
+    if user["role"] in ("owner", "manager"):
         with st.expander("🔗 手動マージ（同一人物の統合）"):
             st.caption("2名を検索して選択し、どちらかにまとめます。統合元の来店履歴が統合先に移動します。")
             mc1, mc2 = st.columns(2)
@@ -999,7 +999,7 @@ def show_home():
     st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
 
     # ── 顧客カード一覧（st.button + :has() CSS で色分け）──
-    PAGE_SIZE = 50
+    PAGE_SIZE = 30
     if "customer_page" not in st.session_state:
         st.session_state.customer_page = 1
     # フィルター変更時にページリセット
@@ -1075,7 +1075,7 @@ def show_detail():
     """, unsafe_allow_html=True)
 
     # クロスストア警告
-    if c["cross_store_flag"] and user["role"] in ("owner","manager","executive"):
+    if c["cross_store_flag"] and user["role"] in ("owner","manager"):
         st.markdown("""
         <div class="cross-store-banner">
         ⚠️ 他店舗に同じ名前の顧客がいます。同一人物ですか？
@@ -1263,6 +1263,28 @@ def show_detail():
                     if st.button("リセット", key="tc_reset", use_container_width=True):
                         db.reset_top_change_bonus(cid)
                         st.rerun()
+
+        # ── 顧客削除（オーナーのみ）──
+        if user["role"] == "owner":
+            st.divider()
+            st.markdown("**🗑 顧客データの削除**")
+            st.caption("この顧客と来店ログをすべて削除します。この操作は取り消せません。")
+            confirm_name = st.text_input(
+                f"削除するには「{c['name']}」と入力してください",
+                key="delete_confirm", placeholder=c["name"]
+            )
+            if st.button("🗑 この顧客を削除する", type="primary", use_container_width=True, key="delete_customer_btn"):
+                if confirm_name.strip() == c["name"]:
+                    db.delete_customer(cid)
+                    st.cache_data.clear()
+                    st.session_state.page = "home"
+                    st.session_state.selected_customer = None
+                    st.query_params.clear()
+                    if st.session_state.login_token:
+                        st.query_params["t"] = st.session_state.login_token
+                    st.rerun()
+                else:
+                    st.error("名前が一致しません。正確に入力してください。")
 
 # ─────────────────────────────────────────
 # ダッシュボード

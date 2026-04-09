@@ -695,6 +695,14 @@ def use_invitation(token: str):
             cur.execute("UPDATE invitations SET used=1 WHERE token=%s", (token,))
 
 
+def delete_customer(customer_id: int):
+    """顧客とその来店ログを完全に削除する"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM visits WHERE customer_id=%s", (customer_id,))
+            cur.execute("DELETE FROM customers WHERE id=%s", (customer_id,))
+
+
 def get_line_samples(store: str) -> list:
     """店舗の告知文サンプルをDBから取得（キャッシュ用）"""
     with get_conn() as conn:
