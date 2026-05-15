@@ -1541,6 +1541,143 @@ def show_dashboard():
                 unsafe_allow_html=True,
             )
 
+    # ── 期間比較セクション ──
+    st.divider()
+    st.markdown("#### 🔄 期間比較")
+    st.caption("2つの期間の数字を並べて比較できます")
+
+    cmp_period_opts = ["—"] + cached_get_available_periods()
+    cmpA1, cmpA2, cmpB1, cmpB2 = st.columns(4)
+    with cmpA1:
+        a_start = st.selectbox("期間A 開始", cmp_period_opts, key="cmp_a_start")
+    with cmpA2:
+        a_end   = st.selectbox("期間A 終了", cmp_period_opts, key="cmp_a_end")
+    with cmpB1:
+        b_start = st.selectbox("期間B 開始", cmp_period_opts, key="cmp_b_start")
+    with cmpB2:
+        b_end   = st.selectbox("期間B 終了", cmp_period_opts, key="cmp_b_end")
+
+    a_start_q = None if a_start == "—" else a_start
+    a_end_q   = None if a_end   == "—" else a_end
+    b_start_q = None if b_start == "—" else b_start
+    b_end_q   = None if b_end   == "—" else b_end
+    if a_start_q and a_end_q and a_start_q > a_end_q:
+        a_start_q, a_end_q = a_end_q, a_start_q
+    if b_start_q and b_end_q and b_start_q > b_end_q:
+        b_start_q, b_end_q = b_end_q, b_start_q
+
+    a_has = bool(a_start_q or a_end_q)
+    b_has = bool(b_start_q or b_end_q)
+
+    def _period_label(s, e):
+        if s and e and s == e: return s
+        if s and e: return f"{s}〜{e}"
+        if s: return f"{s}以降"
+        if e: return f"{e}以前"
+        return "全期間"
+
+    if a_has and b_has:
+        stats_a = cached_get_dashboard_stats(store=store_q, period_start=a_start_q, period_end=a_end_q)
+        stats_b = cached_get_dashboard_stats(store=store_q, period_start=b_start_q, period_end=b_end_q)
+        sa = stats_a.get("summary", {})
+        sb = stats_b.get("summary", {})
+
+        a_new   = sa.get("new_total", 0)
+        a_rep   = sa.get("repeat_b", 0)
+        a_total = a_new + a_rep
+        b_new   = sb.get("new_total", 0)
+        b_rep   = sb.get("repeat_b", 0)
+        b_total = b_new + b_rep
+
+        def _diff_html(a, b):
+            """B - A の差分。プラスは緑、マイナスは赤"""
+            if a == 0 and b == 0:
+                return "<span style='color:#9E8B7D;'>—</span>"
+            diff = b - a
+            if a == 0:
+                pct_str = "新規"
+                color = "#16A34A"
+            else:
+                pct = (diff / a) * 100
+                pct_str = f"{pct:+.1f}%"
+                color = "#16A34A" if diff > 0 else ("#DC2626" if diff < 0 else "#9E8B7D")
+            sign = "+" if diff > 0 else ""
+            return f"<span style='color:{color};font-weight:600;'>{sign}{diff:,} ({pct_str})</span>"
+
+        label_a = _period_label(a_start_q, a_end_q)
+        label_b = _period_label(b_start_q, b_end_q)
+
+        st.markdown(f"""
+        <div style='margin-top:8px;font-size:0.85rem;color:#6B7B8D;text-align:center;'>
+          <b style='color:#5BA4C9;'>期間A</b>: {label_a} ／ <b style='color:#FF8C69;'>期間B</b>: {label_b}
+        </div>
+        """, unsafe_allow_html=True)
+        st.write("")
+
+        # 3カラム×3行（指標 / A / B / 差）の表形式
+        for metric_label, va, vb in [
+            ("新規", a_new, b_new),
+            ("リピーター", a_rep, b_rep),
+            ("合計", a_total, b_total),
+        ]:
+            mcol1, mcol2, mcol3, mcol4 = st.columns([1.2, 1, 1, 1.4])
+            with mcol1:
+                st.markdown(f"<div style='padding:12px 0;font-weight:600;color:#2D1F0F;'>{metric_label}</div>", unsafe_allow_html=True)
+            with mcol2:
+                st.markdown(f"""
+                <div style='background:#F7F5F0;border:1px solid #E8E0D4;border-radius:6px;padding:10px;text-align:center;'>
+                  <div style='font-size:0.65rem;color:#5BA4C9;font-weight:600;letter-spacing:0.05em;'>A</div>
+                  <div style='font-size:1.4rem;font-weight:300;color:#2D1F0F;line-height:1.2;'>{va:,}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with mcol3:
+                st.markdown(f"""
+                <div style='background:#FFF7F2;border:1px solid #FFD9C2;border-radius:6px;padding:10px;text-align:center;'>
+                  <div style='font-size:0.65rem;color:#FF8C69;font-weight:600;letter-spacing:0.05em;'>B</div>
+                  <div style='font-size:1.4rem;font-weight:300;color:#2D1F0F;line-height:1.2;'>{vb:,}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with mcol4:
+                st.markdown(f"""
+                <div style='padding:14px 0;text-align:center;font-size:1.0rem;'>
+                  B − A: {_diff_html(va, vb)}
+                </div>
+                """, unsafe_allow_html=True)
+
+        # 比較棒グラフ
+        fig_cmp = go.Figure()
+        fig_cmp.add_trace(go.Bar(
+            name=f"A: {label_a}",
+            x=["新規", "リピーター", "合計"],
+            y=[a_new, a_rep, a_total],
+            marker_color="#5BA4C9",
+            text=[f"{v:,}" for v in [a_new, a_rep, a_total]],
+            textposition="outside",
+        ))
+        fig_cmp.add_trace(go.Bar(
+            name=f"B: {label_b}",
+            x=["新規", "リピーター", "合計"],
+            y=[b_new, b_rep, b_total],
+            marker_color="#FF8C69",
+            text=[f"{v:,}" for v in [b_new, b_rep, b_total]],
+            textposition="outside",
+        ))
+        fig_cmp.update_layout(
+            barmode="group",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(t=10, b=10, l=10, r=10),
+            height=280,
+            font=dict(family="Noto Sans JP", color="#2D1F0F"),
+            xaxis=dict(showgrid=False),
+            yaxis=dict(showgrid=True, gridcolor="#F0EBE3", zeroline=False),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        )
+        st.plotly_chart(fig_cmp, use_container_width=True,
+                        config={"staticPlot": True, "displayModeBar": False})
+    else:
+        st.info("💡 期間Aと期間Bの両方を指定すると、数値の比較と差分が表示されます")
+
 # ─────────────────────────────────────────
 # ユーザー管理（オーナーのみ）
 # ─────────────────────────────────────────
