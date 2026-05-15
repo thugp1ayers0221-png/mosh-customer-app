@@ -83,32 +83,32 @@ if "db_migrated" not in st.session_state:
         pass
 
 # ─── キャッシュ付きDB取得 ───
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def cached_get_customers(store=None, period=None, period_start=None, period_end=None, rank=None, search=None, limit=100):
     return db.get_customers(store=store, period=period, period_start=period_start, period_end=period_end, rank=rank, search=search, limit=limit)
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=1800, show_spinner=False)
 def cached_get_stores():
     return db.get_stores()
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=1800, show_spinner=False)
 def cached_get_available_periods():
     return db.get_available_periods()
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def cached_get_dashboard_stats(store=None, period=None, period_start=None, period_end=None):
     return db.get_dashboard_stats(store=store, period=period, period_start=period_start, period_end=period_end)
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)
 def cached_get_weekday_stats(store=None, period=None, period_start=None, period_end=None):
     return db.get_weekday_stats(store=store, period=period, period_start=period_start, period_end=period_end)
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def cached_get_all_stores_stats(period=None, period_start=None, period_end=None):
     """全店舗統計を1クエリで取得（ダッシュボード高速化）"""
     return db.get_all_stores_stats(period=period, period_start=period_start, period_end=period_end)
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def cached_get_s_candidates():
     return db.get_s_candidates()
 
@@ -1046,7 +1046,7 @@ def show_home():
     st.caption(f"{sel_store} · {period_label} · {len(customers)}名")
 
     # ── 顧客カード一覧（st.button + :has() CSS で色分け）──
-    PAGE_SIZE = 30
+    PAGE_SIZE = 20
     if "customer_page" not in st.session_state:
         st.session_state.customer_page = 1
     # フィルター変更時にページリセット

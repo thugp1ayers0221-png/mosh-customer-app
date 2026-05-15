@@ -212,23 +212,25 @@ def get_customers(store=None, period=None, period_start=None, period_end=None,
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            base = """
-                SELECT c.*,
-                    COUNT(DISTINCT v.date) as period_visits,
-                    (SELECT COUNT(*) FROM visits
-                     WHERE customer_id=c.id
-                     AND LEFT(date,7)=TO_CHAR(NOW(),'YYYY-MM')) as visits_this_month,
-                    (SELECT COUNT(*) FROM visits
-                     WHERE customer_id=c.id
-                     AND LEFT(date,7)=TO_CHAR(NOW() - INTERVAL '1 month','YYYY-MM')) as visits_last_month
-                FROM customers c
-                LEFT JOIN visits v ON c.id = v.customer_id
-                    AND (%s IS NULL OR v.store = %s)
-                    AND (%s IS NULL OR LEFT(v.date,7) >= %s)
-                    AND (%s IS NULL OR LEFT(v.date,7) <= %s)
-                WHERE c.merged_into IS NULL
-            """
-            params = [store, store, period_start, period_start, period_end, period_end]
+            # 軽量化: 期間指定がある時だけJOIN・COUNT。なければシンプルなSELECTのみ
+            if has_period:
+                base = """
+                    SELECT c.*,
+                        COUNT(DISTINCT v.date) as period_visits
+                    FROM customers c
+                    LEFT JOIN visits v ON c.id = v.customer_id
+                        AND (%s IS NULL OR v.store = %s)
+                        AND (%s IS NULL OR LEFT(v.date,7) >= %s)
+                        AND (%s IS NULL OR LEFT(v.date,7) <= %s)
+                    WHERE c.merged_into IS NULL
+                """
+            else:
+                base = """
+                    SELECT c.*, 0 as period_visits
+                    FROM customers c
+                    WHERE c.merged_into IS NULL
+                """
+            params = [store, store, period_start, period_start, period_end, period_end] if has_period else []
 
             if store:
                 base += " AND (c.primary_store = %s OR %s IS NULL)"
@@ -244,7 +246,7 @@ def get_customers(store=None, period=None, period_start=None, period_end=None,
             if has_period:
                 base += " GROUP BY c.id ORDER BY period_visits DESC, c.total_visits DESC LIMIT %s"
             else:
-                base += " GROUP BY c.id ORDER BY c.total_visits DESC LIMIT %s"
+                base += " ORDER BY c.total_visits DESC LIMIT %s"
             params.append(limit)
 
             cur.execute(base, params)
