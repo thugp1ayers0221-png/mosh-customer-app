@@ -199,9 +199,17 @@ def get_all_customers(store=None) -> list:
             return cur.fetchall()
 
 
-def get_customers(store=None, period=None, rank=None, search=None,
-                  order_by="total_visits", limit=200):
-    """顧客一覧を取得（フィルタ・ソート・前月比トレンド対応）"""
+def get_customers(store=None, period=None, period_start=None, period_end=None,
+                  rank=None, search=None, order_by="total_visits", limit=200):
+    """顧客一覧を取得（フィルタ・ソート・前月比トレンド対応）
+    period: 単月指定（YYYY-MM）※後方互換用
+    period_start / period_end: 範囲指定（YYYY-MM）どちらか片方でも可
+    """
+    # 後方互換: period が指定されたら start=end=period 扱い
+    if period and not (period_start or period_end):
+        period_start = period_end = period
+    has_period = bool(period_start or period_end)
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             base = """
@@ -216,10 +224,11 @@ def get_customers(store=None, period=None, rank=None, search=None,
                 FROM customers c
                 LEFT JOIN visits v ON c.id = v.customer_id
                     AND (%s IS NULL OR v.store = %s)
-                    AND (%s IS NULL OR LEFT(v.date,7) = %s)
+                    AND (%s IS NULL OR LEFT(v.date,7) >= %s)
+                    AND (%s IS NULL OR LEFT(v.date,7) <= %s)
                 WHERE c.merged_into IS NULL
             """
-            params = [store, store, period, period]
+            params = [store, store, period_start, period_start, period_end, period_end]
 
             if store:
                 base += " AND (c.primary_store = %s OR %s IS NULL)"
@@ -232,7 +241,7 @@ def get_customers(store=None, period=None, rank=None, search=None,
                 params += [f"%{search}%", f"%{search}%"]
 
             # 期間指定あり → その期間の来店数順、なし → 全期間累計来店数順
-            if period:
+            if has_period:
                 base += " GROUP BY c.id ORDER BY period_visits DESC, c.total_visits DESC LIMIT %s"
             else:
                 base += " GROUP BY c.id ORDER BY c.total_visits DESC LIMIT %s"
@@ -306,13 +315,17 @@ def get_visit_stats(customer_id):
     }
 
 
-def get_dashboard_stats(store=None, period=None):
-    """ダッシュボード用集計"""
+def get_dashboard_stats(store=None, period=None, period_start=None, period_end=None):
+    """ダッシュボード用集計（period_start/endで範囲指定可）"""
+    if period and not (period_start or period_end):
+        period_start = period_end = period
     with get_conn() as conn:
         with conn.cursor() as cur:
             store_cond = "AND store=%s" if store else ""
-            period_cond = "AND LEFT(date,7)=%s" if period else ""
-            params = [p for p in [store, period] if p]
+            start_cond = "AND LEFT(date,7)>=%s" if period_start else ""
+            end_cond   = "AND LEFT(date,7)<=%s" if period_end   else ""
+            period_cond = f"{start_cond} {end_cond}"
+            params = [p for p in [store, period_start, period_end] if p]
 
             cur.execute(f"""
                 SELECT
@@ -363,12 +376,16 @@ def get_stores():
             return [r['store'] for r in cur.fetchall()]
 
 
-def get_all_stores_stats(period=None):
+def get_all_stores_stats(period=None, period_start=None, period_end=None):
     """全店舗の集計を1クエリで取得（ダッシュボード高速化: N往復→1往復）"""
+    if period and not (period_start or period_end):
+        period_start = period_end = period
     with get_conn() as conn:
         with conn.cursor() as cur:
-            period_cond = "AND LEFT(date,7)=%s" if period else ""
-            params = [period] if period else []
+            start_cond = "AND LEFT(date,7)>=%s" if period_start else ""
+            end_cond   = "AND LEFT(date,7)<=%s" if period_end   else ""
+            period_cond = f"{start_cond} {end_cond}"
+            params = [p for p in [period_start, period_end] if p]
             cur.execute(f"""
                 SELECT
                     store,
@@ -387,17 +404,21 @@ def get_all_stores_stats(period=None):
             for r in rows}
 
 
-def get_weekday_stats(store=None, period=None):
+def get_weekday_stats(store=None, period=None, period_start=None, period_end=None):
     """
     曜日別の平均来客数を返す
     戻り値: [{"weekday": 0..6(月〜日), "label": "月", "avg_new": x, "avg_repeat": x, "avg_total": x}, ...]
     """
     WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"]
+    if period and not (period_start or period_end):
+        period_start = period_end = period
     with get_conn() as conn:
         with conn.cursor() as cur:
             store_cond  = "AND store=%s"  if store  else ""
-            period_cond = "AND LEFT(date,7)=%s" if period else ""
-            params = [p for p in [store, period] if p]
+            start_cond  = "AND LEFT(date,7)>=%s" if period_start else ""
+            end_cond    = "AND LEFT(date,7)<=%s" if period_end   else ""
+            period_cond = f"{start_cond} {end_cond}"
+            params = [p for p in [store, period_start, period_end] if p]
 
             # DOW: 0=日曜, 1=月曜...6=土曜 (PostgreSQL仕様)
             # → 月曜始まりに変換: (DOW + 6) % 7  → 0=月,1=火,...,6=日

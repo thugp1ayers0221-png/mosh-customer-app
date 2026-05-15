@@ -84,8 +84,8 @@ if "db_migrated" not in st.session_state:
 
 # ─── キャッシュ付きDB取得 ───
 @st.cache_data(ttl=300, show_spinner=False)
-def cached_get_customers(store=None, period=None, rank=None, search=None, limit=100):
-    return db.get_customers(store=store, period=period, rank=rank, search=search, limit=limit)
+def cached_get_customers(store=None, period=None, period_start=None, period_end=None, rank=None, search=None, limit=100):
+    return db.get_customers(store=store, period=period, period_start=period_start, period_end=period_end, rank=rank, search=search, limit=limit)
 
 @st.cache_data(ttl=600, show_spinner=False)
 def cached_get_stores():
@@ -96,17 +96,17 @@ def cached_get_available_periods():
     return db.get_available_periods()
 
 @st.cache_data(ttl=300, show_spinner=False)
-def cached_get_dashboard_stats(store=None, period=None):
-    return db.get_dashboard_stats(store=store, period=period)
+def cached_get_dashboard_stats(store=None, period=None, period_start=None, period_end=None):
+    return db.get_dashboard_stats(store=store, period=period, period_start=period_start, period_end=period_end)
 
 @st.cache_data(ttl=600, show_spinner=False)
-def cached_get_weekday_stats(store=None, period=None):
-    return db.get_weekday_stats(store=store, period=period)
+def cached_get_weekday_stats(store=None, period=None, period_start=None, period_end=None):
+    return db.get_weekday_stats(store=store, period=period, period_start=period_start, period_end=period_end)
 
 @st.cache_data(ttl=300, show_spinner=False)
-def cached_get_all_stores_stats(period=None):
+def cached_get_all_stores_stats(period=None, period_start=None, period_end=None):
     """全店舗統計を1クエリで取得（ダッシュボード高速化）"""
-    return db.get_all_stores_stats(period=period)
+    return db.get_all_stores_stats(period=period, period_start=period_start, period_end=period_end)
 
 @st.cache_data(ttl=300, show_spinner=False)
 def cached_get_s_candidates():
@@ -899,9 +899,9 @@ def show_home():
         key="home_search"
     )
 
-    # ── フィルター（店舗・期間、コンパクト2列）──
-    stores  = ["全店舗"] + cached_get_stores()
-    periods = ["全期間"] + cached_get_available_periods()
+    # ── フィルター（店舗・期間範囲）──
+    stores       = ["全店舗"] + cached_get_stores()
+    period_opts  = ["—"] + cached_get_available_periods()  # —=指定なし
 
     if user["role"] == "manager" and user.get("store"):
         default_store  = user["store"]
@@ -910,7 +910,7 @@ def show_home():
         default_store  = "全店舗"
         store_disabled = False
 
-    fc1, fc2 = st.columns(2)
+    fc1, fc2, fc3 = st.columns([2, 1, 1])
     with fc1:
         sel_store = st.selectbox(
             "店舗", stores,
@@ -919,21 +919,40 @@ def show_home():
             label_visibility="collapsed",
         )
     with fc2:
-        sel_period = st.selectbox(
-            "期間", periods,
-            label_visibility="collapsed",
+        sel_start = st.selectbox(
+            "開始月", period_opts,
+            label_visibility="visible",
+            help="この月以降のデータで絞り込み",
+            key="home_period_start",
+        )
+    with fc3:
+        sel_end = st.selectbox(
+            "終了月", period_opts,
+            label_visibility="visible",
+            help="この月以前のデータで絞り込み",
+            key="home_period_end",
         )
 
     store_q  = None if sel_store == "全店舗" else sel_store
-    period_q = None if sel_period == "全期間" else sel_period
+    period_start_q = None if sel_start == "—" else sel_start
+    period_end_q   = None if sel_end   == "—" else sel_end
+    # 範囲が逆転していたら入れ替え
+    if period_start_q and period_end_q and period_start_q > period_end_q:
+        period_start_q, period_end_q = period_end_q, period_start_q
+    has_period = bool(period_start_q or period_end_q)
     search_q = search.strip() if search.strip() else None
 
-    customers = cached_get_customers(store=store_q, period=period_q, search=search_q)
+    customers = cached_get_customers(
+        store=store_q,
+        period_start=period_start_q,
+        period_end=period_end_q,
+        search=search_q,
+    )
 
     # 来店ログ0件は非表示（検索時は除く）
     # 期間指定あり → その期間に来店した人のみ表示
     # 期間指定なし（全期間）→ 全員表示（total_visits > 0 は全員該当）
-    if not search_q and period_q:
+    if not search_q and has_period:
         customers = [c for c in customers if (c.get("period_visits") or 0) > 0]
 
     # S候補の通知（専用軽量クエリ）— スタッフには非表示
@@ -995,15 +1014,25 @@ def show_home():
                         st.success(f"✅ {cust_a['name']} を {cust_b['name']} に統合しました")
                         st.rerun()
 
-    # 件数表示
-    st.caption(f"{sel_store} · {sel_period} · {len(customers)}名")
+    # 件数表示（期間ラベル組み立て）
+    if period_start_q and period_end_q and period_start_q == period_end_q:
+        period_label = period_start_q
+    elif period_start_q and period_end_q:
+        period_label = f"{period_start_q} 〜 {period_end_q}"
+    elif period_start_q:
+        period_label = f"{period_start_q} 以降"
+    elif period_end_q:
+        period_label = f"{period_end_q} 以前"
+    else:
+        period_label = "全期間"
+    st.caption(f"{sel_store} · {period_label} · {len(customers)}名")
 
     # ── 顧客カード一覧（st.button + :has() CSS で色分け）──
     PAGE_SIZE = 30
     if "customer_page" not in st.session_state:
         st.session_state.customer_page = 1
     # フィルター変更時にページリセット
-    filter_key = f"{store_q}_{period_q}_{search_q}"
+    filter_key = f"{store_q}_{period_start_q}_{period_end_q}_{search_q}"
     if st.session_state.get("_last_filter") != filter_key:
         st.session_state.customer_page = 1
         st.session_state._last_filter = filter_key
@@ -1016,7 +1045,7 @@ def show_home():
         store_lbl = c['primary_store'] or '未設定'
         rank      = c.get("rank", "C")
         # 期間指定あり → その期間の来店数、なし（全期間）→ 累計来店数
-        visit_cnt = (c.get("period_visits") or 0) if period_q else (c.get("total_visits") or 0)
+        visit_cnt = (c.get("period_visits") or 0) if has_period else (c.get("total_visits") or 0)
         label     = f"{name}\n{store_lbl}  ·  {visit_cnt}回"
 
         st.markdown(f'<div class="rank-{rank.lower()}"></div>', unsafe_allow_html=True)
@@ -1291,29 +1320,48 @@ def show_detail():
 # ─────────────────────────────────────────
 def show_dashboard():
     user = st.session_state.user
-    stores = ["全店舗"] + cached_get_stores()
-    periods = ["全期間"] + cached_get_available_periods()
+    stores      = ["全店舗"] + cached_get_stores()
+    period_opts = ["—"] + cached_get_available_periods()
 
     if user["role"] == "manager" and user.get("store") and user["store"] != "本部":
         default_store = user["store"]
     else:
         default_store = "全店舗"
 
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns([2, 1, 1])
     with c1:
         sel_store = st.selectbox("店舗", stores,
             index=stores.index(default_store) if default_store in stores else 0,
             label_visibility="collapsed",
             key="dash_store")
     with c2:
-        sel_period = st.selectbox("期間", periods,
-            label_visibility="collapsed",
-            key="dash_period")
+        sel_start = st.selectbox("開始月", period_opts,
+            help="この月以降のデータで絞り込み",
+            key="dash_period_start")
+    with c3:
+        sel_end = st.selectbox("終了月", period_opts,
+            help="この月以前のデータで絞り込み",
+            key="dash_period_end")
 
     store_q  = None if sel_store == "全店舗" else sel_store
-    period_q = None if sel_period == "全期間" else sel_period
+    period_start_q = None if sel_start == "—" else sel_start
+    period_end_q   = None if sel_end   == "—" else sel_end
+    if period_start_q and period_end_q and period_start_q > period_end_q:
+        period_start_q, period_end_q = period_end_q, period_start_q
 
-    stats = cached_get_dashboard_stats(store=store_q, period=period_q)
+    # 表示用ラベル
+    if period_start_q and period_end_q and period_start_q == period_end_q:
+        sel_period = period_start_q
+    elif period_start_q and period_end_q:
+        sel_period = f"{period_start_q} 〜 {period_end_q}"
+    elif period_start_q:
+        sel_period = f"{period_start_q} 以降"
+    elif period_end_q:
+        sel_period = f"{period_end_q} 以前"
+    else:
+        sel_period = "全期間"
+
+    stats = cached_get_dashboard_stats(store=store_q, period_start=period_start_q, period_end=period_end_q)
     s = stats.get("summary", {})
     r = stats.get("rank_counts", {})
 
@@ -1401,7 +1449,7 @@ def show_dashboard():
             "西船橋":   "#FF6B35",  # オレンジ
         }
         # 全店舗を1クエリで取得（N+1解消）
-        all_stores_data = cached_get_all_stores_stats(period=period_q)
+        all_stores_data = cached_get_all_stores_stats(period_start=period_start_q, period_end=period_end_q)
         for store in cached_get_stores():
             ss     = all_stores_data.get(store, {})
             new_c  = ss.get("new_total", 0)
@@ -1442,7 +1490,7 @@ def show_dashboard():
 
     # ── 曜日別グラフ ──
     st.markdown("#### 曜日別 平均来客数")
-    weekday_data = cached_get_weekday_stats(store=store_q, period=period_q)
+    weekday_data = cached_get_weekday_stats(store=store_q, period_start=period_start_q, period_end=period_end_q)
     if weekday_data and any(d["avg_total"] > 0 for d in weekday_data):
         labels  = [d["label"]     for d in weekday_data]
         totals  = [d["avg_total"] for d in weekday_data]
