@@ -573,6 +573,27 @@ div[data-testid="stElementContainer"]:has(.rank-b) + div[data-testid="stElementC
   border-color: var(--mosh-primary) !important;
   box-shadow: 0 0 0 3px rgba(91,164,201,0.15) !important;
 }
+/* Selectbox/Inputのラベル統一（Stripe-style） */
+.stSelectbox label, .stTextInput label, .stNumberInput label, .stTextArea label {
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  color: var(--text-tertiary) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  margin-bottom: 4px !important;
+}
+/* フィルター行のセレクトボックス高さを完全に揃える */
+.stSelectbox > div[data-baseweb="select"] {
+  min-height: 38px !important;
+}
+.stSelectbox > div[data-baseweb="select"] > div {
+  min-height: 38px !important;
+}
+/* ?マークアイコンの位置調整 */
+.stSelectbox label > div[data-testid="stTooltipIcon"],
+.stTextInput label > div[data-testid="stTooltipIcon"] {
+  margin-left: 4px !important;
+}
 /* Streamlit tabs (Stripe underline) */
 div[data-testid="stTabs"] button {
   font-family: 'Noto Sans JP', sans-serif !important;
@@ -916,22 +937,19 @@ def show_home():
             "店舗", stores,
             index=stores.index(default_store) if default_store in stores else 0,
             disabled=store_disabled,
-            label_visibility="collapsed",
+            key="home_store",
         )
     with fc2:
         sel_start = st.selectbox(
             "開始月", period_opts,
-            label_visibility="visible",
-            help="この月以降のデータで絞り込み",
             key="home_period_start",
         )
     with fc3:
         sel_end = st.selectbox(
             "終了月", period_opts,
-            label_visibility="visible",
-            help="この月以前のデータで絞り込み",
             key="home_period_end",
         )
+    st.caption("💡 開始月だけ＝それ以降 / 終了月だけ＝それ以前 / 両方＝範囲指定")
 
     store_q  = None if sel_store == "全店舗" else sel_store
     period_start_q = None if sel_start == "—" else sel_start
@@ -1332,16 +1350,14 @@ def show_dashboard():
     with c1:
         sel_store = st.selectbox("店舗", stores,
             index=stores.index(default_store) if default_store in stores else 0,
-            label_visibility="collapsed",
             key="dash_store")
     with c2:
         sel_start = st.selectbox("開始月", period_opts,
-            help="この月以降のデータで絞り込み",
             key="dash_period_start")
     with c3:
         sel_end = st.selectbox("終了月", period_opts,
-            help="この月以前のデータで絞り込み",
             key="dash_period_end")
+    st.caption("💡 開始月だけ＝それ以降 / 終了月だけ＝それ以前 / 両方＝範囲指定")
 
     store_q  = None if sel_store == "全店舗" else sel_store
     period_start_q = None if sel_start == "—" else sel_start
@@ -1544,18 +1560,35 @@ def show_dashboard():
     # ── 期間比較セクション ──
     st.divider()
     st.markdown("#### 🔄 期間比較")
-    st.caption("2つの期間の数字を並べて比較できます")
+    st.caption("2つの期間の数字を並べて比較できます（両方を指定すると差分が表示されます）")
 
     cmp_period_opts = ["—"] + cached_get_available_periods()
-    cmpA1, cmpA2, cmpB1, cmpB2 = st.columns(4)
+
+    # 期間Aブロック
+    st.markdown(
+        "<div style='font-size:0.72rem;font-weight:700;color:#5BA4C9;"
+        "text-transform:uppercase;letter-spacing:0.08em;margin:8px 0 4px;'>"
+        "期間A</div>",
+        unsafe_allow_html=True,
+    )
+    cmpA1, cmpA2 = st.columns(2)
     with cmpA1:
-        a_start = st.selectbox("期間A 開始", cmp_period_opts, key="cmp_a_start")
+        a_start = st.selectbox("開始月", cmp_period_opts, key="cmp_a_start")
     with cmpA2:
-        a_end   = st.selectbox("期間A 終了", cmp_period_opts, key="cmp_a_end")
+        a_end   = st.selectbox("終了月", cmp_period_opts, key="cmp_a_end")
+
+    # 期間Bブロック
+    st.markdown(
+        "<div style='font-size:0.72rem;font-weight:700;color:#FF8C69;"
+        "text-transform:uppercase;letter-spacing:0.08em;margin:8px 0 4px;'>"
+        "期間B</div>",
+        unsafe_allow_html=True,
+    )
+    cmpB1, cmpB2 = st.columns(2)
     with cmpB1:
-        b_start = st.selectbox("期間B 開始", cmp_period_opts, key="cmp_b_start")
+        b_start = st.selectbox("開始月", cmp_period_opts, key="cmp_b_start")
     with cmpB2:
-        b_end   = st.selectbox("期間B 終了", cmp_period_opts, key="cmp_b_end")
+        b_end   = st.selectbox("終了月", cmp_period_opts, key="cmp_b_end")
 
     a_start_q = None if a_start == "—" else a_start
     a_end_q   = None if a_end   == "—" else a_end
