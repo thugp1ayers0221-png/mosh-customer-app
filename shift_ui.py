@@ -1963,6 +1963,33 @@ def render_store_admin_tab(user: dict):
         return
 
     st.markdown("### 店舗マスター")
+
+    # ── 月間目標を売上スプシから自動取り込み ──
+    st.markdown("#### 月間目標の自動取込")
+    st.caption("各店舗の売上管理スプシから「達成率（月間）」行の次の行の月間目標を取得して更新します。毎月月初（1〜3日頃）にスプシへ数字が入った後に押してください。")
+    col_sync1, col_sync2 = st.columns([2, 3])
+    with col_sync1:
+        today = date.today()
+        ym_options = []
+        for i in range(-1, 2):
+            d = (today.replace(day=1) + timedelta(days=32 * i)).replace(day=1)
+            ym_options.append((d.year, d.month, d.strftime("%Y-%m")))
+        idx = 1  # デフォルト: 今月
+        ym_pick = st.selectbox("対象月", ym_options, index=idx, format_func=lambda x: x[2], key="store_sync_ym")
+    with col_sync2:
+        st.markdown("&nbsp;")
+        if st.button("スプシから今月の目標を取り込む", type="primary", key="sync_targets_btn", use_container_width=True):
+            with st.spinner("各店舗のスプシから取得中..."):
+                results = shift_db.sync_all_store_targets(ym_pick[0], ym_pick[1])
+            for code, val in results.items():
+                name = STORE_CODE_TO_NAME.get(code, code)
+                if val:
+                    st.success(f"{name}: ¥{val:,} に更新")
+                else:
+                    st.warning(f"{name}: 取得できませんでした（シート未作成 or 目標未入力の可能性）")
+            st.rerun()
+
+    st.markdown("---")
     stores = shift_db.get_stores_master(active_only=False)
     df = pd.DataFrame([{
         "コード": s["code"],

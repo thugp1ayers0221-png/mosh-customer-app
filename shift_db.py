@@ -717,5 +717,97 @@ def update_shift_admin_password(new_password: str):
 
 def get_monthly_sales(year_month: str, store: str) -> Optional[int]:
     """既存 mosh_sync.py が出力する月次売上を取得（将来拡張）"""
-    # TODO: Obsidian CSV or daily_summary に売上カラム追加後に実装
     return None
+
+
+# ─────────────────────────────────────────
+# 売上スプレッドシートから月間目標を取得して store_master を更新
+# ─────────────────────────────────────────
+
+# 各店舗の売上管理スプレッドシートID
+SALES_SPREADSHEETS = {
+    "kashiwa":         "1S_kquharr32fxNZOcY6kd9H09unlgsgJPx8_1U_t_T4",
+    "masons":          "1o0h12xD_XxFGPcBr6rUWdbUiGIOQ3pBkPaUHU9KrL0I",
+    "higashimurayama": "1NIkJ0vIkbIxeRrNiXg9zgFfmtCgdUyffV7jC280eBf0",
+    "nishifunabashi":  "1-JY6ZHfxGBbkqrDx6VknkeLuJ65wCgj4sCQxU-7EhSo",
+    "otaka":           "1Z7b3QFRADozn03luimdw55q4x4OQQCC-cBFmIeLer0A",
+}
+
+_SHEETS_CREDS_PATH = "/Users/kiyomotoyuuki/scripts/mosh/sheets_credentials.json"
+
+
+def _candidate_sheet_names(year: int, month: int) -> list:
+    """各店舗で使われ得るシート名候補を生成"""
+    yy = year % 100
+    return [
+        f"{yy}.{month:02d}",    # 26.05
+        f"{yy}.{month}",        # 26.5
+        f"{year}.{month:02d}",  # 2026.05
+        f"{year}.{month}",      # 2026.5
+        f"{year}.{month}月",    # 2026.5月
+        f"{year}.{month:02d}月", # 2026.05月
+        f"{year}{month:02d}",   # 202605
+    ]
+
+
+def fetch_target_from_sheet(store_code: str, year: int, month: int) -> Optional[int]:
+    """各店舗の売上管理スプシから月間目標を取得
+
+    構造: 「達成率（月間）」というラベルの行の次の行、A列に
+          「¥1,845,000」形式で月間目標が入っている。
+    """
+    spreadsheet_id = SALES_SPREADSHEETS.get(store_code)
+    if not spreadsheet_id:
+        return None
+
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+        creds = Credentials.from_service_account_file(
+            _SHEETS_CREDS_PATH,
+            scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
+        )
+        gc = gspread.authorize(creds)
+        sh = gc.open_by_key(spreadsheet_id)
+
+        # シート名候補を順次試す
+        ws = None
+        existing_titles = {w.title for w in sh.worksheets()}
+        for name in _candidate_sheet_names(year, month):
+            if name in existing_titles:
+                ws = sh.worksheet(name)
+                break
+        if not ws:
+            return None
+
+        values = ws.get_all_values()
+        # 「達成率（月間）」行を探して、次の行の A列を取得
+        for i, row in enumerate(values):
+            if row and row[0] and "達成率（月間）" in row[0]:
+                if i + 1 < len(values):
+                    next_row = values[i + 1]
+                    if next_row and next_row[0]:
+                        raw = next_row[0].strip()
+                        cleaned = raw.replace("¥", "").replace(",", "").replace(",", "").strip()
+                        if cleaned:
+                            try:
+                                return int(float(cleaned))
+                            except (ValueError, TypeError):
+                                return None
+        return None
+    except Exception:
+        return None
+
+
+def sync_all_store_targets(year: int, month: int) -> dict:
+    """全店舗の月間目標をスプシから取得して store_master を更新
+
+    戻り値: {store_code: target_value or None}
+    """
+    results = {}
+    for store_code in SALES_SPREADSHEETS.keys():
+        target = fetch_target_from_sheet(store_code, year, month)
+        if target and target > 0:
+            update_store_master(store_code, monthly_target_sales=target)
+        results[store_code] = target
+    return results
