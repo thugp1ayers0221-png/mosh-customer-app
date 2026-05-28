@@ -1064,11 +1064,8 @@ def render_confirmed_shifts_tab(user: dict):
         st.info(f"{ym} の {STORE_CODE_TO_NAME.get(store_code)} の確定シフトはまだありません（管理者が公開すると表示されます）")
         return
 
-    # 日付ごとにグルーピング
-    from collections import defaultdict
-    by_date = defaultdict(list)
-    for s in shifts:
-        by_date[s["shift_date"]].append(s)
+    # 表示モードタブ
+    view_tabs = st.tabs(["月別一覧", "日別ガント"])
 
     weekday_jp = ["月", "火", "水", "木", "金", "土", "日"]
     try:
@@ -1077,22 +1074,27 @@ def render_confirmed_shifts_tab(user: dict):
     except Exception:
         has_jpholiday = False
 
-    st.caption("黄色ハイライトは自分のシフトです")
+    # ── タブ1: 月別一覧（既存のカード表示） ──
+    with view_tabs[0]:
+        st.caption("黄色ハイライトは自分のシフトです")
+        from collections import defaultdict
+        by_date = defaultdict(list)
+        for s in shifts:
+            by_date[s["shift_date"]].append(s)
 
-    # 日付昇順でカード表示
-    for d in sorted(by_date.keys()):
-        wd = d.weekday()
-        is_holiday = has_jpholiday and jpholiday.is_holiday(d)
-        date_color = "#E25555" if (wd == 6 or is_holiday) else ("#4A90E2" if wd == 5 else "#2D1F0F")
+        for d in sorted(by_date.keys()):
+            wd = d.weekday()
+            is_holiday = has_jpholiday and jpholiday.is_holiday(d)
+            date_color = "#E25555" if (wd == 6 or is_holiday) else ("#4A90E2" if wd == 5 else "#2D1F0F")
 
-        shifts_html = ""
-        for s in sorted(by_date[d], key=lambda x: x["start_time"]):
-            is_self = staff_id and s["staff_id"] == staff_id
-            style = ' style="background:#FFF3CD;font-weight:700;border-left:3px solid #FFC107;"' if is_self else ''
-            time_str = _format_time_cell(s["start_time"], s["end_time"], s["crosses_midnight"])
-            shifts_html += f'<div class="mosh-staff-row"{style}>{s["display_name"]}　{time_str}</div>'
+            shifts_html = ""
+            for s in sorted(by_date[d], key=lambda x: x["start_time"]):
+                is_self = staff_id and s["staff_id"] == staff_id
+                style = ' style="background:#FFF3CD;font-weight:700;border-left:3px solid #FFC107;"' if is_self else ''
+                time_str = _format_time_cell(s["start_time"], s["end_time"], s["crosses_midnight"])
+                shifts_html += f'<div class="mosh-staff-row"{style}>{s["display_name"]}　{time_str}</div>'
 
-        st.markdown(f"""
+            st.markdown(f"""
 <div class="mosh-day-card">
     <div class="mosh-day-header" style="color:{date_color};">
         {d.month}/{d.day} ({weekday_jp[wd]}){'祝日' if is_holiday else ''}
@@ -1101,14 +1103,156 @@ def render_confirmed_shifts_tab(user: dict):
 </div>
 """, unsafe_allow_html=True)
 
-    # CSVエクスポート
-    rows = [{
-        "日付": s["shift_date"].strftime("%Y-%m-%d"),
-        "曜日": weekday_jp[s["shift_date"].weekday()],
-        "スタッフ": s["display_name"],
-        "時間帯": _format_time_cell(s["start_time"], s["end_time"], s["crosses_midnight"]),
-    } for s in sorted(shifts, key=lambda x: (x["shift_date"], x["start_time"]))]
-    _csv_download(pd.DataFrame(rows), f"confirmed_shifts_{store_code}_{ym}.csv")
+        rows = [{
+            "日付": s["shift_date"].strftime("%Y-%m-%d"),
+            "曜日": weekday_jp[s["shift_date"].weekday()],
+            "スタッフ": s["display_name"],
+            "時間帯": _format_time_cell(s["start_time"], s["end_time"], s["crosses_midnight"]),
+        } for s in sorted(shifts, key=lambda x: (x["shift_date"], x["start_time"]))]
+        _csv_download(pd.DataFrame(rows), f"confirmed_shifts_{store_code}_{ym}.csv")
+
+    # ── タブ2: 日別ガント ──
+    with view_tabs[1]:
+        _render_daily_gantt(shifts, ym, weekday_jp, has_jpholiday, staff_id)
+
+
+def _render_daily_gantt(shifts, ym, weekday_jp, has_jpholiday, my_staff_id):
+    """日別ガントチャート表示（時間軸 × スタッフ）"""
+    import plotly.graph_objects as go
+    if has_jpholiday:
+        import jpholiday
+
+    # 日付選択（シフトがある日のみ）
+    available_dates = sorted({s["shift_date"] for s in shifts})
+    if not available_dates:
+        st.info("シフトがありません")
+        return
+    today = date.today()
+    default_idx = 0
+    for i, d in enumerate(available_dates):
+        if d >= today:
+            default_idx = i
+            break
+
+    target_date = st.selectbox(
+        "日付を選択",
+        available_dates,
+        index=default_idx,
+        format_func=lambda d: f"{d.month}/{d.day} ({weekday_jp[d.weekday()]}){'  祝日' if has_jpholiday and jpholiday.is_holiday(d) else ''}",
+        key="gantt_date",
+    )
+
+    day_shifts = sorted(
+        [s for s in shifts if s["shift_date"] == target_date],
+        key=lambda x: x["start_time"],
+    )
+
+    if not day_shifts:
+        st.info("この日はシフトがありません")
+        return
+
+    # サマリーメトリクス
+    total_hours = 0.0
+    for s in day_shifts:
+        start_dt = datetime.combine(target_date, s["start_time"])
+        end_dt = datetime.combine(target_date, s["end_time"])
+        if s["crosses_midnight"]:
+            end_dt += timedelta(days=1)
+        total_hours += (end_dt - start_dt).total_seconds() / 3600
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("出勤人数", f"{len(day_shifts)} 名")
+    with c2:
+        st.metric("延べ拘束時間", f"{total_hours:.1f} h")
+    with c3:
+        st.metric("平均勤務時間", f"{total_hours/len(day_shifts):.1f} h")
+
+    # ガントチャート
+    fig = go.Figure()
+    # 時間軸範囲を全シフトから決定
+    min_h = 24.0
+    max_h = 0.0
+    for s in day_shifts:
+        start_h = s["start_time"].hour + s["start_time"].minute / 60
+        end_h = s["end_time"].hour + s["end_time"].minute / 60
+        if s["crosses_midnight"] or end_h < start_h:
+            end_h += 24
+        min_h = min(min_h, start_h)
+        max_h = max(max_h, end_h)
+    # 余裕を持たせる
+    min_h = max(0, int(min_h) - 1)
+    max_h = int(max_h) + 1
+
+    # スタッフ順（出勤時刻順を維持・y軸下から上に並ぶので逆順にする）
+    staff_order = [s["display_name"] for s in reversed(day_shifts)]
+
+    for s in day_shifts:
+        start_h = s["start_time"].hour + s["start_time"].minute / 60
+        end_h = s["end_time"].hour + s["end_time"].minute / 60
+        if s["crosses_midnight"] or end_h < start_h:
+            end_h += 24
+        is_self = my_staff_id and s["staff_id"] == my_staff_id
+        color = "#FFC107" if is_self else "#006AFF"
+        time_label = _format_time_cell(s["start_time"], s["end_time"], s["crosses_midnight"])
+        fig.add_trace(go.Bar(
+            x=[end_h - start_h],
+            y=[s["display_name"]],
+            base=start_h,
+            orientation="h",
+            marker=dict(color=color, line=dict(color="white", width=1)),
+            hovertemplate=f"<b>{s['display_name']}</b><br>{time_label}<br>%{{x:.1f}}h<extra></extra>",
+            showlegend=False,
+            text=time_label,
+            textposition="inside",
+            insidetextanchor="middle",
+            textfont=dict(color="white", size=11),
+        ))
+
+    # 時間軸ラベル（24超は翌X時として表示）
+    tick_vals = list(range(min_h, max_h + 1))
+    tick_text = [f"{h%24}時" if h != 24 else "24時" for h in tick_vals]
+
+    # 現在時刻の縦線（当日のみ）
+    shapes = []
+    if target_date == date.today():
+        now_jst = shift_db.now_jst()
+        now_h = now_jst.hour + now_jst.minute / 60
+        if min_h <= now_h <= max_h:
+            shapes.append(dict(
+                type="line",
+                x0=now_h, x1=now_h,
+                y0=-0.5, y1=len(day_shifts) - 0.5,
+                line=dict(color="#E25555", width=2, dash="dash"),
+            ))
+
+    fig.update_layout(
+        xaxis=dict(
+            range=[min_h, max_h],
+            tickvals=tick_vals,
+            ticktext=tick_text,
+            gridcolor="#EFF2F6",
+            zeroline=False,
+            side="top",
+        ),
+        yaxis=dict(
+            categoryorder="array",
+            categoryarray=staff_order,
+            gridcolor="#EFF2F6",
+        ),
+        height=max(280, len(day_shifts) * 44 + 80),
+        margin=dict(l=10, r=10, t=40, b=10),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        bargap=0.35,
+        shapes=shapes,
+        font=dict(family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', 'Hiragino Sans', sans-serif", size=13),
+    )
+
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    if target_date == date.today():
+        st.caption("赤い破線は現在時刻")
 
 
 # ─────────────────────────────────────────
