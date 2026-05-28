@@ -1623,11 +1623,7 @@ def render_payroll_tab(user: dict):
         ym_options.append(d.strftime("%Y-%m"))
     ym = st.selectbox("対象月", ym_options, index=3, key="payroll_ym")
 
-    # ロック残り時間表示
-    remain = PAYROLL_TIMEOUT_SEC - (datetime.now() - st.session_state[PAYROLL_UNLOCK_KEY]).total_seconds()
-    st.caption(f"アンロック残り {int(remain // 60)}分{int(remain % 60)}秒")
-
-    if st.button("再ロック"):
+    if st.button("ロックする", key="payroll_relock"):
         st.session_state.pop(PAYROLL_UNLOCK_KEY, None)
         st.rerun()
 
