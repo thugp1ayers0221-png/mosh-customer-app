@@ -39,20 +39,27 @@ def migrate_shift_db():
     with get_conn() as conn:
         with conn.cursor() as cur:
             # ── stores_master ──
+            # open_time/close_time は TEXT 型で保持（'29:00'のような深夜営業表記を許容するため）
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS stores_master (
                     code TEXT PRIMARY KEY,
                     display_name TEXT NOT NULL,
                     monthly_target_sales INTEGER DEFAULT 0,
                     target_labor_cost_ratio NUMERIC DEFAULT 30.0,
-                    open_time TIME DEFAULT '15:00',
-                    close_time TIME DEFAULT '24:00',
+                    open_time TEXT DEFAULT '15:00',
+                    close_time TEXT DEFAULT '24:00',
                     is_franchise BOOLEAN DEFAULT false,
                     active BOOLEAN DEFAULT true,
                     sort_order INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT NOW()
                 )
             """)
+            # 既存テーブルが TIME 型で作成されていた場合、TEXT に変換
+            try:
+                cur.execute("ALTER TABLE stores_master ALTER COLUMN open_time TYPE TEXT USING open_time::text")
+                cur.execute("ALTER TABLE stores_master ALTER COLUMN close_time TYPE TEXT USING close_time::text")
+            except Exception:
+                pass
 
             # ── staff_master ──
             cur.execute("""
