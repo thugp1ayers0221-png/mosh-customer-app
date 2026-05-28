@@ -37,6 +37,15 @@ STORE_OPTIONS = [
 ]
 STORE_CODE_TO_NAME = dict(STORE_OPTIONS)
 STORE_NAME_TO_CODE = {n: c for c, n in STORE_OPTIONS}
+# シフト作成画面の他店シフト略号表示用（柏=柏、メ=メイソンズ、東=東村山、西=西船橋、大=おおたか、松=松戸）
+STORE_CODE_TO_SHORT = {
+    "kashiwa": "柏",
+    "masons": "メ",
+    "higashimurayama": "東",
+    "nishifunabashi": "西",
+    "otaka": "大",
+    "matsudo": "松",
+}
 
 
 def _csv_download(df: pd.DataFrame, filename: str, label: str = "CSV出力"):
@@ -660,11 +669,23 @@ def render_shift_create_tab(user: dict):
                           horizontal=True, key="shift_view_mode")
     status_filter = {"下書き編集": "draft", "確定済み（読み取り専用）": "confirmed", "全部": None}[view_mode]
 
-    # シフト取得
+    # シフト取得（当該店舗）
     shifts = shift_db.get_shifts_by_month(ym, store=store_code, status=status_filter)
     shift_map = {}
     for s in shifts:
         shift_map[(s["staff_id"], s["shift_date"].day)] = s
+
+    # 他店シフト取得（掛け持ちスタッフの重複防止用）
+    # status_filter に関わらず draft/confirmed 両方を表示対象に
+    all_shifts = shift_db.get_shifts_by_month(ym)
+    other_store_map = {}  # (staff_id, day) -> ["[西15-22]", "[メ22-29]"]
+    for s in all_shifts:
+        if s["store"] == store_code:
+            continue  # 自店は除外
+        key = (s["staff_id"], s["shift_date"].day)
+        short_store = STORE_CODE_TO_SHORT.get(s["store"], s["store"])
+        time_str = _format_time_cell(s["start_time"], s["end_time"], s["crosses_midnight"])
+        other_store_map.setdefault(key, []).append(f"[{short_store}{time_str}]")
 
     # 曜日付きヘッダー（土曜・日曜・祝日で識別）
     weekday_emoji = ["", "", "", "", "", "", ""]  # 月火水木金土日
@@ -688,16 +709,21 @@ def render_shift_create_tab(user: dict):
             day_headers.append(str(d))
 
     # DataFrame作成（列ヘッダーに曜日付き・スタッフ名はシンプルに）
+    # 他店シフトがある場合は [西15-22] のように表示して掛け持ち重複を可視化
     rows = []
     for staff in staffs:
         row = {"スタッフ": staff["display_name"], "_staff_id": staff["id"]}
         for d, header in zip(days, day_headers):
             sh = shift_map.get((staff["id"], d))
-            row[header] = _format_time_cell(sh["start_time"], sh["end_time"], sh["crosses_midnight"]) if sh else ""
+            if sh:
+                row[header] = _format_time_cell(sh["start_time"], sh["end_time"], sh["crosses_midnight"])
+            else:
+                others = other_store_map.get((staff["id"], d), [])
+                row[header] = " ".join(others) if others else ""
         rows.append(row)
     df = pd.DataFrame(rows)
 
-    st.caption("例: `15-24`（15時〜24時）/ `15-29`（15時〜翌5時）/ 休みは空欄・`休`・`×`・`ー`")
+    st.caption("例: `15-24`（15時〜24時）/ `15-29`（15時〜翌5時）/ 休みは空欄・`休`・`×`・`ー`　　`[西15-22]` 形式は他店シフト（編集不可）")
 
     # 各日付列の幅を狭く
     column_config = {"スタッフ": st.column_config.TextColumn(width="small", pinned="left")}
@@ -754,6 +780,12 @@ def _save_shift_changes(edited_df: pd.DataFrame, original_df: pd.DataFrame,
             new_val = (row[col] or "").strip() if isinstance(row[col], str) else ""
             old_val = (original_df.iloc[idx][col] or "").strip() if isinstance(original_df.iloc[idx][col], str) else ""
             if new_val == old_val:
+                continue
+            # [西15-22] 形式は他店シフトの表示用なので保存対象外（ユーザーが編集した場合は無視）
+            if new_val.startswith("[") and new_val.endswith("]"):
+                continue
+            # 元が他店表示で new_val が空欄になった場合（ユーザーが他店表示を消した）も保存しない
+            if old_val.startswith("[") and not new_val:
                 continue
             try:
                 shift_date = date(year, month, day)
