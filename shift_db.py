@@ -36,10 +36,10 @@ def _hash(s: str) -> str:
 
 def migrate_shift_db():
     """シフト管理関連のテーブル作成（IF NOT EXISTS で冪等）"""
+
+    # ── stores_master を先に作成（TEXT型・他テーブルがFK参照するため） ──
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # ── stores_master ──
-            # open_time/close_time は TEXT 型で保持（'29:00'のような深夜営業表記を許容するため）
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS stores_master (
                     code TEXT PRIMARY KEY,
@@ -54,13 +54,22 @@ def migrate_shift_db():
                     created_at TIMESTAMP DEFAULT NOW()
                 )
             """)
-            # 既存テーブルが TIME 型で作成されていた場合、TEXT に変換
-            try:
-                cur.execute("ALTER TABLE stores_master ALTER COLUMN open_time TYPE TEXT USING open_time::text")
-                cur.execute("ALTER TABLE stores_master ALTER COLUMN close_time TYPE TEXT USING close_time::text")
-            except Exception:
-                pass
 
+    # ── 既存テーブルが TIME 型で作成されていた場合、TEXT に変換 ──
+    # 各 ALTER を独立トランザクションで実行（失敗無視・冪等）
+    for col in ("open_time", "close_time"):
+        try:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"ALTER TABLE stores_master ALTER COLUMN {col} TYPE TEXT USING {col}::text"
+                    )
+        except Exception:
+            pass
+
+    # ── 残りのテーブル ──
+    with get_conn() as conn:
+        with conn.cursor() as cur:
             # ── staff_master ──
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS staff_master (
