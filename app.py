@@ -85,8 +85,6 @@ if "db_migrated" not in st.session_state:
     except Exception:
         pass
 
-# Square風デザインシステムをアプリ全体に適用
-shift_ui._inject_mobile_css()
 
 # ─── キャッシュ付きDB取得 ───
 @st.cache_data(ttl=600, show_spinner=False)
@@ -138,43 +136,43 @@ st.markdown("""
 /* Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
 
-/* Stripe-inspired MOSH Design System */
+/* Square-inspired MOSH Design System（旧Stripe風から刷新） */
 :root {
-  /* Brand */
-  --mosh-primary:       #5BA4C9;
-  --mosh-primary-hover: #4A93B8;
-  --mosh-primary-light: #E8F4FA;
-  --mosh-sky:           #A8D8EA;
-  --mosh-cream:         #F5EFE0;
-  --mosh-brown:         #6B4226;
-  --mosh-dark:          #2D1F0F;
-  --mosh-green:         #5B8F5F;
+  /* Brand - Square配色 */
+  --mosh-primary:       #006AFF;
+  --mosh-primary-hover: #0058D4;
+  --mosh-primary-light: rgba(0,106,255,0.08);
+  --mosh-sky:           #4A9DFF;
+  --mosh-cream:         #F7F8FA;
+  --mosh-brown:         #4F566B;
+  --mosh-dark:          #1A1F36;
+  --mosh-green:         #1FBA63;
 
-  /* Surfaces */
-  --bg:             #FFFDF7;
+  /* Surfaces - 白基調 + 薄グレー */
+  --bg:             #F7F8FA;
   --surface:        #FFFFFF;
-  --surface-hover:  #FAFAF7;
-  --surface-muted:  #F7F5F0;
+  --surface-hover:  #F0F2F5;
+  --surface-muted:  #F7F8FA;
 
-  /* Borders */
-  --border:         #E8E0D4;
-  --border-light:   #F0EBE3;
+  /* Borders - Square 風グレー */
+  --border:         #E3E8EE;
+  --border-light:   #EFF2F6;
 
-  /* Shadows (warm brown-tinted, Stripe multi-layer) */
-  --shadow-1:       rgba(107,66,38,0.10);
-  --shadow-2:       rgba(0,0,0,0.04);
-  --shadow-hover:   rgba(107,66,38,0.18);
+  /* Shadows - cool gray-tinted */
+  --shadow-1:       rgba(26,31,54,0.06);
+  --shadow-2:       rgba(26,31,54,0.04);
+  --shadow-hover:   rgba(26,31,54,0.12);
 
   /* Text */
-  --text-primary:   #2D1F0F;
-  --text-secondary: #6B7B8D;
-  --text-tertiary:  #9E8B7D;
+  --text-primary:   #1A1F36;
+  --text-secondary: #4F566B;
+  --text-tertiary:  #8792A2;
 
   /* Rank (unchanged) */
   --rank-s:  #C8922A;
-  --rank-a:  #4AA8D8;
-  --rank-b:  #c8b89a;
-  --rank-c:  #AAAAAA;
+  --rank-a:  #006AFF;
+  --rank-b:  #8792A2;
+  --rank-c:  #C1C9D2;
 }
 
 /* 上部余白を削除 */
@@ -712,6 +710,9 @@ else:
 }
 </style>
 """, unsafe_allow_html=True)
+
+# Square風デザインシステムを全体に上書き適用（MOSHブランドCSSの後に注入して後勝ち）
+shift_ui._inject_mobile_css()
 
 # ─────────────────────────────────────────
 # セッション初期化 + ログイン記憶チェック
