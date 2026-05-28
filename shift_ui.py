@@ -1544,28 +1544,16 @@ def _build_square_csv(staffs, ym, source, store_map):
 
 PAYROLL_UNLOCK_KEY = "payroll_unlocked_at"
 SHIFT_ADMIN_UNLOCK_KEY = "shift_admin_unlocked_at"
-PAYROLL_TIMEOUT_SEC = 30 * 60  # 30分
-SHIFT_ADMIN_TIMEOUT_SEC = 30 * 60
+# タイムアウトなし。session_state にフラグが立っていれば常に unlocked。
+# ログアウト or ブラウザ閉じれば自動的にセッション切れる。
 
 
 def _payroll_unlocked() -> bool:
-    ts = st.session_state.get(PAYROLL_UNLOCK_KEY)
-    if not ts:
-        return False
-    if (datetime.now() - ts).total_seconds() > PAYROLL_TIMEOUT_SEC:
-        st.session_state.pop(PAYROLL_UNLOCK_KEY, None)
-        return False
-    return True
+    return bool(st.session_state.get(PAYROLL_UNLOCK_KEY))
 
 
 def _shift_admin_unlocked() -> bool:
-    ts = st.session_state.get(SHIFT_ADMIN_UNLOCK_KEY)
-    if not ts:
-        return False
-    if (datetime.now() - ts).total_seconds() > SHIFT_ADMIN_TIMEOUT_SEC:
-        st.session_state.pop(SHIFT_ADMIN_UNLOCK_KEY, None)
-        return False
-    return True
+    return bool(st.session_state.get(SHIFT_ADMIN_UNLOCK_KEY))
 
 
 def require_shift_admin_unlock(context: str = "default") -> bool:
@@ -1576,8 +1564,8 @@ def require_shift_admin_unlock(context: str = "default") -> bool:
     pw = st.text_input("シフト管理パスワード", type="password", key=f"shift_pw_input_{context}")
     if st.button("ロック解除", key=f"shift_unlock_btn_{context}"):
         if shift_db.verify_shift_admin_password(pw):
-            st.session_state[SHIFT_ADMIN_UNLOCK_KEY] = datetime.now()
-            st.success("ロック解除しました（30分間有効）")
+            st.session_state[SHIFT_ADMIN_UNLOCK_KEY] = True
+            st.success("ロック解除しました")
             st.rerun()
         else:
             st.error("パスワードが違います")
@@ -1597,8 +1585,8 @@ def require_payroll_unlock(context: str = "default") -> bool:
     pw = st.text_input("経営陣パスワード", type="password", key=f"payroll_pw_input_{context}")
     if st.button("ロック解除", key=f"payroll_unlock_btn_{context}"):
         if shift_db.verify_payroll_password(pw):
-            st.session_state[PAYROLL_UNLOCK_KEY] = datetime.now()
-            st.success("ロック解除しました（30分間有効）")
+            st.session_state[PAYROLL_UNLOCK_KEY] = True
+            st.success("ロック解除しました")
             st.rerun()
         else:
             st.error("パスワードが違います")
