@@ -217,19 +217,54 @@ section[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked
   color: var(--sq-primary) !important;
   font-weight: 600 !important;
 }
-/* サイドバー内のボタン（ログアウト用） */
+/* サイドバー内のボタン（ナビ用・ログアウト用） */
 section[data-testid="stSidebar"] .stButton > button {
-  margin: 0 8px !important;
-  width: calc(100% - 16px) !important;
   background: transparent !important;
   color: var(--sq-text-secondary) !important;
-  border: 1px solid var(--sq-border) !important;
-  font-size: 13px !important;
+  border: none !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  text-align: left !important;
+  justify-content: flex-start !important;
+  padding: 8px 12px !important;
+  border-radius: var(--sq-radius) !important;
+  box-shadow: none !important;
+  min-height: 36px !important;
+  margin-bottom: 2px !important;
 }
 section[data-testid="stSidebar"] .stButton > button:hover {
   background: var(--sq-bg-hover) !important;
-  color: var(--sq-danger) !important;
-  border-color: var(--sq-danger) !important;
+  color: var(--sq-text) !important;
+}
+/* 選択中（primary）のナビボタン */
+section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+  background: var(--sq-primary-bg) !important;
+  color: var(--sq-primary) !important;
+  font-weight: 600 !important;
+  border: none !important;
+}
+section[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+  background: var(--sq-primary-bg) !important;
+  color: var(--sq-primary) !important;
+}
+/* expander ヘッダーをコンパクトに */
+section[data-testid="stSidebar"] [data-testid="stExpander"] {
+  border: none !important;
+  background: transparent !important;
+  margin: 0 4px !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary,
+section[data-testid="stSidebar"] [data-testid="stExpander"] details > summary {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--sq-text-muted) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 8px 10px !important;
+  border-bottom: none !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+  padding: 4px 0 8px !important;
 }
 /* 旧:メインタブ用 CSS は不要になったが、念のため残す（他の st.tabs に効く） */
 

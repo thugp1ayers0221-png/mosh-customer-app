@@ -2852,54 +2852,61 @@ else:
 </div>
 """, unsafe_allow_html=True)
 
-            # 権限別ナビメニュー
-            pages_by_role = {
-                "owner": [
-                    "マイシフト",
-                    "店舗シフト",
-                    "打刻",
-                    "シフト希望",
-                    "シフト作成",
-                    "給与計算",
-                    "スタッフ管理",
-                    "店舗マスター",
-                    "初期セットアップ",
-                    "顧客一覧",
-                    "ダッシュボード",
-                    "今日の営業",
-                    "ユーザー管理",
-                ],
-                "payroll_admin": [
-                    "マイシフト",
-                    "店舗シフト",
-                    "打刻",
-                    "シフト希望",
-                    "シフト作成",
-                    "給与計算",
-                    "スタッフ管理",
-                    "顧客一覧",
-                    "ダッシュボード",
-                    "今日の営業",
-                ],
-                "manager": [
-                    "マイシフト",
-                    "店舗シフト",
-                    "打刻",
-                    "シフト希望",
-                    "シフト作成",
-                    "顧客一覧",
-                    "ダッシュボード",
-                    "今日の営業",
-                ],
-                "staff": [
-                    "マイシフト",
-                    "店舗シフト",
-                    "打刻",
-                    "シフト希望",
-                ],
-            }
-            pages = pages_by_role.get(role, pages_by_role["staff"])
-            selected_page = st.radio("メニュー", pages, label_visibility="collapsed", key="main_nav")
+            # ── メニュー: グループ化（権限別フィルタ）──
+            ALL_GROUPS = [
+                ("日常業務", [
+                    ("マイシフト",       ["owner", "payroll_admin", "manager", "staff"]),
+                    ("店舗シフト",       ["owner", "payroll_admin", "manager", "staff"]),
+                    ("打刻",             ["owner", "payroll_admin", "manager", "staff"]),
+                    ("シフト希望",       ["owner", "payroll_admin", "manager", "staff"]),
+                ]),
+                ("シフト管理", [
+                    ("シフト作成",       ["owner", "payroll_admin", "manager"]),
+                ]),
+                ("本部操作", [
+                    ("給与計算",         ["owner", "payroll_admin"]),
+                    ("スタッフ管理",     ["owner", "payroll_admin"]),
+                    ("店舗マスター",     ["owner"]),
+                    ("初期セットアップ", ["owner"]),
+                ]),
+                ("顧客", [
+                    ("顧客一覧",         ["owner", "payroll_admin", "manager"]),
+                    ("ダッシュボード",   ["owner", "payroll_admin", "manager"]),
+                    ("今日の営業",       ["owner", "payroll_admin", "manager"]),
+                ]),
+                ("システム", [
+                    ("ユーザー管理",     ["owner"]),
+                ]),
+            ]
+
+            # 権限フィルタしてメニュー構築
+            menu_groups = []
+            for grp, pages in ALL_GROUPS:
+                visible = [p for p, perms in pages if role in perms]
+                if visible:
+                    menu_groups.append((grp, visible))
+
+            # デフォルト選択
+            all_pages = [p for _, pgs in menu_groups for p in pgs]
+            if "main_nav" not in st.session_state or st.session_state.main_nav not in all_pages:
+                st.session_state.main_nav = all_pages[0] if all_pages else "マイシフト"
+
+            # 各グループを expander 化（現在ページを含むグループは展開）
+            for grp, pages in menu_groups:
+                is_open = st.session_state.main_nav in pages
+                with st.expander(grp, expanded=is_open):
+                    for page in pages:
+                        is_selected = (st.session_state.main_nav == page)
+                        if st.button(
+                            page,
+                            key=f"nav_btn_{page}",
+                            use_container_width=True,
+                            type="primary" if is_selected else "secondary",
+                        ):
+                            st.session_state.main_nav = page
+                            st.rerun()
+
+            selected_page = st.session_state.main_nav
 
             st.markdown("---")
             st.markdown(f"""
