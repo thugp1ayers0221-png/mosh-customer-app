@@ -270,6 +270,88 @@ section[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stExpa
 
 /* ─── タブは Streamlit ネイティブの横並び表示を使う（st.sidebarでナビしているのでサイドバー化CSSは不要） ─── */
 
+/* ─── タブ（st.tabs）を Square 風に整える ─── */
+div[data-baseweb="tab-list"] {
+  gap: 4px !important;
+  border-bottom: 1px solid var(--sq-border) !important;
+}
+button[role="tab"] {
+  padding: 8px 16px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--sq-text-secondary) !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+button[role="tab"]:hover {
+  color: var(--sq-text) !important;
+}
+button[role="tab"][aria-selected="true"] {
+  color: var(--sq-primary) !important;
+  font-weight: 600 !important;
+}
+/* タブ下のアクティブインジケータを Square 青に */
+div[data-baseweb="tab-highlight"] {
+  background: var(--sq-primary) !important;
+  height: 2px !important;
+}
+
+/* ─── expander を Square 風に ─── */
+[data-testid="stExpander"] {
+  border: 1px solid var(--sq-border) !important;
+  border-radius: var(--sq-radius) !important;
+  background: var(--sq-bg) !important;
+  box-shadow: var(--sq-shadow-sm);
+  margin-bottom: 8px !important;
+}
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] details > summary {
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  color: var(--sq-text) !important;
+  padding: 12px 16px !important;
+}
+[data-testid="stExpander"] summary:hover {
+  background: var(--sq-bg-hover) !important;
+}
+
+/* ─── 顧客一覧などのボタンカードを Square 風に ─── */
+.mosh-customer-app .stButton > button {
+  background: var(--sq-bg) !important;
+  border: 1px solid var(--sq-border) !important;
+  color: var(--sq-text) !important;
+  text-align: left !important;
+  justify-content: flex-start !important;
+  padding: 14px 18px !important;
+  border-radius: var(--sq-radius-lg) !important;
+  min-height: 56px !important;
+  margin-bottom: 6px !important;
+  box-shadow: var(--sq-shadow-sm) !important;
+  font-weight: 500 !important;
+  transition: all 0.15s ease;
+}
+.mosh-customer-app .stButton > button:hover {
+  border-color: var(--sq-primary) !important;
+  box-shadow: var(--sq-shadow) !important;
+  transform: translateY(-1px);
+}
+
+/* ─── caption / 補助テキストを Square 風に ─── */
+.stCaption, [data-testid="stCaptionContainer"] {
+  font-size: 12px !important;
+  color: var(--sq-text-muted) !important;
+}
+
+/* ─── ヘッダー（H1/H2/H3）を Square 風 ─── */
+.stApp h1 { font-size: 28px !important; font-weight: 600 !important; color: var(--sq-text) !important; letter-spacing: -0.5px; }
+.stApp h2 { font-size: 22px !important; font-weight: 600 !important; color: var(--sq-text) !important; letter-spacing: -0.3px; }
+.stApp h3 { font-size: 18px !important; font-weight: 600 !important; color: var(--sq-text) !important; letter-spacing: -0.2px; }
+
+/* ─── plotly チャートのフォント統一 ─── */
+.js-plotly-plot .plotly text {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Hiragino Sans", sans-serif !important;
+}
+
 /* ─── ボタン Square風 ─── */
 .stButton > button {
   border-radius: var(--sq-radius) !important;
