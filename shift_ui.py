@@ -1092,30 +1092,53 @@ def render_timecard_tab(user: dict):
     # 現在時刻（JST明示）
     now = shift_db.now_jst()
 
+    import streamlit.components.v1 as components
+
     if open_log:
         # 出勤中
         clock_in_time = open_log["clock_in"]
-        # DB から取得した clock_in_time が naive datetime（UTCで保存された場合）の対応
         if clock_in_time.tzinfo is None:
-            # Postgres TIMESTAMPTZ から取り出されたものは tzinfo を持つはず。
-            # 念のため tzinfo がない場合は UTC とみなして JST に変換
             from datetime import timezone as _tz
             clock_in_time = clock_in_time.replace(tzinfo=_tz.utc)
         clock_in_jst = clock_in_time.astimezone(shift_db.JST)
-        elapsed = now - clock_in_jst
-        elapsed_h = elapsed.total_seconds() / 3600
-        st.markdown(f"""
-<div class="mosh-clock-card clock-status-active">
-    <div class="mosh-clock-staff">{staff['display_name']}</div>
-    <div class="mosh-clock-store">{STORE_CODE_TO_NAME.get(open_log['store'], open_log['store'])}</div>
-    <div class="mosh-clock-now">🕐 現在 {now.strftime('%H:%M')}</div>
-    <div class="mosh-clock-status">出勤中</div>
-    <div class="mosh-clock-elapsed">
-        出勤 {clock_in_jst.strftime('%H:%M')} から<br>
-        <span class="mosh-clock-elapsed-h">{elapsed_h:.1f} 時間</span>
-    </div>
+        elapsed_h = (now - clock_in_jst).total_seconds() / 3600
+        clock_in_iso = clock_in_jst.isoformat()
+        clock_in_date_str = clock_in_jst.strftime("%Y/%m/%d")
+        clock_in_time_str = clock_in_jst.strftime("%H:%M")
+        store_name = STORE_CODE_TO_NAME.get(open_log['store'], open_log['store'])
+        components.html(f"""
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+body{{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue","Hiragino Sans",sans-serif;background:transparent;}}
+.card{{background:linear-gradient(135deg,#006AFF 0%,#0058D4 100%);color:white;padding:28px 24px;border-radius:12px;text-align:center;box-shadow:0 4px 12px rgba(26,31,54,0.08);}}
+.staff{{font-size:20px;font-weight:600;margin-bottom:6px;}}
+.store{{font-size:14px;opacity:0.92;margin-bottom:14px;}}
+.now-time{{font-size:42px;font-weight:600;letter-spacing:2px;margin:12px 0;font-variant-numeric:tabular-nums;}}
+.status{{font-size:18px;font-weight:600;margin:12px 0;}}
+.elapsed-label{{font-size:13px;opacity:0.9;margin-top:14px;}}
+.elapsed-value{{font-size:26px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums;}}
+</style></head><body>
+<div class="card">
+  <div class="staff">{staff['display_name']}</div>
+  <div class="store">{store_name}</div>
+  <div class="now-time" id="now-time">--:--:--</div>
+  <div class="status">出勤中</div>
+  <div class="elapsed-label">{clock_in_date_str} {clock_in_time_str} 出勤</div>
+  <div class="elapsed-value" id="elapsed">{elapsed_h:.2f} 時間</div>
 </div>
-""", unsafe_allow_html=True)
+<script>
+const startMs = new Date("{clock_in_iso}").getTime();
+function pad(n){{return String(n).padStart(2,'0');}}
+function tick(){{
+  const now = new Date();
+  document.getElementById('now-time').textContent = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+  const h = (now.getTime() - startMs) / 1000 / 3600;
+  document.getElementById('elapsed').textContent = h.toFixed(2) + ' 時間';
+}}
+tick();
+setInterval(tick, 1000);
+</script>
+</body></html>
+""", height=290)
 
         if st.button("退勤", type="primary", use_container_width=True, key="clock_out_btn"):
             shift_db.clock_out(open_log["id"])
@@ -1124,13 +1147,30 @@ def render_timecard_tab(user: dict):
             st.rerun()
     else:
         # 未出勤
-        st.markdown(f"""
-<div class="mosh-clock-card clock-status-idle">
-    <div class="mosh-clock-staff">{staff['display_name']}</div>
-    <div class="mosh-clock-now">🕐 現在 {now.strftime('%H:%M')}</div>
-    <div class="mosh-clock-status">未出勤</div>
+        components.html(f"""
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+body{{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue","Hiragino Sans",sans-serif;background:transparent;}}
+.card{{background:#FFFFFF;border:1px solid #E3E8EE;color:#1A1F36;padding:24px 20px;border-radius:12px;text-align:center;box-shadow:0 1px 3px rgba(26,31,54,0.04);}}
+.staff{{font-size:18px;font-weight:600;margin-bottom:8px;}}
+.now-time{{font-size:38px;font-weight:600;letter-spacing:2px;margin:12px 0;font-variant-numeric:tabular-nums;color:#1A1F36;}}
+.status{{font-size:16px;font-weight:500;color:#4F566B;}}
+</style></head><body>
+<div class="card">
+  <div class="staff">{staff['display_name']}</div>
+  <div class="now-time" id="now-time">--:--:--</div>
+  <div class="status">未出勤</div>
 </div>
-""", unsafe_allow_html=True)
+<script>
+function pad(n){{return String(n).padStart(2,'0');}}
+function tick(){{
+  const now = new Date();
+  document.getElementById('now-time').textContent = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+}}
+tick();
+setInterval(tick, 1000);
+</script>
+</body></html>
+""", height=200)
 
         store_code = st.selectbox(
             "勤務店舗を選んでください",
@@ -1168,7 +1208,7 @@ def render_timecard_tab(user: dict):
                 status_str = f"{ci_jst.strftime('%H:%M')} - 出勤中"
             st.markdown(f"""
 <div class="mosh-log-card">
-    <div class="mosh-log-date">{log['work_date'].month}/{log['work_date'].day}</div>
+    <div class="mosh-log-date">{log['work_date'].strftime('%Y/%m/%d')}</div>
     <div class="mosh-log-store">{STORE_CODE_TO_NAME.get(log['store'], log['store'])}</div>
     <div class="mosh-log-time">{status_str}</div>
 </div>
