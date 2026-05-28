@@ -2924,13 +2924,12 @@ else:
                 st.rerun()
 
         # ─── メインエリア（ページ切替時に前のコンテンツをクリア）───
-        # 前回のページと違う場合は rerun して残存DOMをクリア
-        if st.session_state.get("_last_main_page") != selected_page:
-            st.session_state["_last_main_page"] = selected_page
-            st.rerun()
-
-        # st.empty で囲むことで、ページ描画が完了するまで古いDOMを保持しない
+        # st.empty で囲み、ページ変更時はまず empty() で空にしてから新コンテンツを描画
         main_area = st.empty()
+        page_changed = st.session_state.get("_last_main_page") != selected_page
+        if page_changed:
+            main_area.empty()  # 古いDOMを即座にクリア
+            st.session_state["_last_main_page"] = selected_page
         with main_area.container():
             if selected_page == "🏠 ホーム":
                 _render_home_dashboard(user)

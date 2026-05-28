@@ -96,6 +96,12 @@ html, body, [class*="css"], .stApp {
 section[data-testid="stMain"] .block-container {
   padding-top: 1rem;
   max-width: 100% !important;
+  animation: mosh-page-fade-in 0.18s ease-out;
+}
+/* ページ切替時にフェードインで前のページの残像を隠す */
+@keyframes mosh-page-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ─── Streamlit ネイティブサイドバー Square風 ─── */
