@@ -199,6 +199,13 @@ def migrate_shift_db():
                 cur.execute("ALTER TABLE staff_master ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 100")
             except Exception:
                 pass
+            # 姓・名（Square形式CSV出力用）
+            try:
+                cur.execute("ALTER TABLE staff_master ADD COLUMN IF NOT EXISTS last_name TEXT DEFAULT ''")
+                cur.execute("ALTER TABLE staff_master ADD COLUMN IF NOT EXISTS first_name TEXT DEFAULT ''")
+                cur.execute("ALTER TABLE staff_master ADD COLUMN IF NOT EXISTS employee_id TEXT DEFAULT ''")
+            except Exception:
+                pass
 
     # 初期データ投入
     _seed_initial_data()

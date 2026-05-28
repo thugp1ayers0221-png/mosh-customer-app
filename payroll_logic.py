@@ -360,5 +360,121 @@ def _run_self_tests():
     # 期待: 通常7h(15-22) + 深夜法定内1h(22-23) + 残業×深夜3.5h(23-2:30) + 休憩1.5h(2:30-4) = ¥20,250
 
 
+# ─────────────────────────────────────────
+# Square 互換 CSV 出力
+# ─────────────────────────────────────────
+
+def export_square_row(
+    start_dt: datetime,
+    end_dt: datetime,
+    employment_type: str,
+    hourly_rate: float,
+    store_display: str,
+    last_name: str,
+    first_name: str,
+    employee_id: str = "",
+    is_legal_holiday: bool = False,
+    monthly_overtime_so_far: float = 0.0,
+) -> dict:
+    """
+    Square 形式の勤怠CSV 1行分を生成する。
+
+    Square のオリジナル仕様に合わせて、深夜割増は計算しない（深夜帯も通常扱い）。
+    残業は「1日8時間超」で判定し、月60時間超は倍額支給枠（×1.5）に振り替える。
+
+    Args:
+        start_dt: 出勤時刻
+        end_dt: 退勤時刻
+        employment_type: アルバイト/社員/業務委託（休憩控除分岐）
+        hourly_rate: 時給（社員の場合は残業計算用時給）
+        store_display: 店舗表示名（「The Mason's」「西船橋」など）
+        last_name / first_name / employee_id: スタッフ情報
+        is_legal_holiday: 法定休日労働なら True（倍額支給扱い）
+        monthly_overtime_so_far: その月のこれまでの残業合計（時間）
+            60h を超えた部分を倍額支給に振り替える
+    """
+    raw_hours = (end_dt - start_dt).total_seconds() / 3600
+    break_min = calc_break_minutes(employment_type, raw_hours)
+    actual_hours = raw_hours - break_min / 60
+
+    # 法定内/法定外（1日8時間で判定）
+    if is_legal_holiday:
+        regular = 0.0
+        overtime = 0.0
+        double = actual_hours
+    else:
+        regular = min(actual_hours, 8.0)
+        overtime_today = max(0.0, actual_hours - 8.0)
+        # 月60h超の残業分を倍額支給に振替
+        before = monthly_overtime_so_far
+        after = before + overtime_today
+        if after <= 60:
+            overtime = overtime_today
+            double = 0.0
+        elif before >= 60:
+            overtime = 0.0
+            double = overtime_today
+        else:
+            overtime = 60 - before
+            double = after - 60
+
+    # 賃金
+    regular_pay = round(regular * hourly_rate)
+    overtime_pay = round(overtime * hourly_rate * 1.25)
+    double_pay = round(double * hourly_rate * 1.50)
+    total_pay = regular_pay + overtime_pay + double_pay
+
+    # 休憩は退勤直前に配置（清本さんルール）
+    if break_min > 0:
+        break_end_dt = end_dt
+        break_start_dt = end_dt - timedelta(minutes=break_min)
+        break_start_d = break_start_dt.strftime("%Y-%m-%d")
+        break_start_t = break_start_dt.strftime("%-H:%M:%S") + " JST"
+        break_end_d = break_end_dt.strftime("%Y-%m-%d")
+        break_end_t = break_end_dt.strftime("%-H:%M:%S") + " JST"
+    else:
+        break_start_d = break_start_t = break_end_d = break_end_t = ""
+
+    return {
+        "row": {
+            "従業員ID": employee_id,
+            "姓": last_name,
+            "名": first_name,
+            "職種": employment_type,
+            "店舗": store_display,
+            "出勤日": start_dt.strftime("%Y-%m-%d"),
+            "出勤時間": start_dt.strftime("%-H:%M:%S") + " JST",
+            "退勤日": end_dt.strftime("%Y-%m-%d"),
+            "退勤時間": end_dt.strftime("%-H:%M:%S") + " JST",
+            "休憩開始日": break_start_d,
+            "休憩開始時間": break_start_t,
+            "休憩終了日": break_end_d,
+            "休憩終了時間": break_end_t,
+            "無給の休憩": round(break_min / 60, 2),
+            "有給の休憩": 0.0,
+            "通常勤務時間": round(regular, 2),
+            "残業時間": round(overtime, 2),
+            "倍額支給時間": round(double, 2),
+            "合計実働時間": round(actual_hours, 2),
+            "時給": f"JPY{int(hourly_rate):,}",
+            "固定人件費": f"JPY{regular_pay:,}",
+            "残業での人件費": f"JPY{overtime_pay:,}",
+            "倍額支給人件費": f"JPY{double_pay:,}",
+            "合計人件費": f"JPY{total_pay:,}",
+        },
+        "overtime_added": overtime + double,  # 月累計に加算する残業時間
+    }
+
+
+SQUARE_CSV_COLUMNS = [
+    "従業員ID", "姓", "名", "職種", "店舗",
+    "出勤日", "出勤時間", "退勤日", "退勤時間",
+    "休憩開始日", "休憩開始時間", "休憩終了日", "休憩終了時間",
+    "無給の休憩", "有給の休憩",
+    "通常勤務時間", "残業時間", "倍額支給時間", "合計実働時間",
+    "時給", "固定人件費", "残業での人件費", "倍額支給人件費", "合計人件費",
+]
+
+
 if __name__ == "__main__":
     _run_self_tests()

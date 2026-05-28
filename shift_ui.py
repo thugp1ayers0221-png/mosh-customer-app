@@ -1062,6 +1062,78 @@ def _run_setup():
         st.exception(e)
 
 
+def _build_square_csv(staffs, ym, source, store_map):
+    """Square 形式CSV（24カラム・日次行データ）の rows を生成"""
+    all_rows = []
+
+    if source == "シフト（予定）":
+        all_shifts = shift_db.get_shifts_by_month(ym)
+        all_logs = []
+    else:
+        all_shifts = []
+        all_logs = shift_db.get_time_logs_by_month(ym)
+
+    for staff in staffs:
+        rate = pl.calc_hourly_rate(
+            employment_type=staff["employment_type"],
+            hourly_wage=staff["hourly_wage"],
+            base_monthly_salary=staff["base_monthly_salary"],
+            monthly_standard_hours=staff["monthly_standard_hours"],
+            position_allowance_per_hour=staff["position_allowance_per_hour"],
+        )
+        if rate <= 0:
+            continue
+
+        entries = []
+        if source == "シフト（予定）":
+            for s in [x for x in all_shifts if x["staff_id"] == staff["id"]]:
+                start_dt, end_dt = _shift_to_datetimes(
+                    s["shift_date"], s["start_time"], s["end_time"], s["crosses_midnight"]
+                )
+                entries.append({
+                    "start_dt": start_dt,
+                    "end_dt": end_dt,
+                    "store": s["store"],
+                    "is_legal_holiday": s["is_legal_holiday"],
+                })
+        else:
+            for l in [x for x in all_logs if x["staff_id"] == staff["id"] and x["clock_out"]]:
+                # JST に変換してから naive datetime にする
+                ci = l["clock_in"]
+                co = l["clock_out"]
+                if ci.tzinfo:
+                    ci = ci.astimezone(shift_db.JST).replace(tzinfo=None)
+                if co.tzinfo:
+                    co = co.astimezone(shift_db.JST).replace(tzinfo=None)
+                entries.append({
+                    "start_dt": ci,
+                    "end_dt": co,
+                    "store": l["store"],
+                    "is_legal_holiday": False,
+                })
+
+        entries.sort(key=lambda x: x["start_dt"])
+
+        monthly_ot = 0.0
+        for e in entries:
+            result = pl.export_square_row(
+                start_dt=e["start_dt"],
+                end_dt=e["end_dt"],
+                employment_type=staff["employment_type"],
+                hourly_rate=rate,
+                store_display=store_map.get(e["store"], e["store"]),
+                last_name=staff.get("last_name", "") or "",
+                first_name=staff.get("first_name", "") or "",
+                employee_id=staff.get("employee_id", "") or "",
+                is_legal_holiday=e["is_legal_holiday"],
+                monthly_overtime_so_far=monthly_ot,
+            )
+            all_rows.append(result["row"])
+            monthly_ot += result["overtime_added"]
+
+    return all_rows
+
+
 PAYROLL_UNLOCK_KEY = "payroll_unlocked_at"
 SHIFT_ADMIN_UNLOCK_KEY = "shift_admin_unlocked_at"
 PAYROLL_TIMEOUT_SEC = 30 * 60  # 30分
@@ -1228,8 +1300,17 @@ def render_payroll_tab(user: dict):
     total_pay = df["支給合計"].sum()
     st.metric("📊 月間総人件費", f"¥{total_pay:,}")
 
-    _csv_download(df, f"mosh_payroll_{ym}_{source.replace('（','_').replace('）','')}.csv",
-                   label="📥 給与計算CSVをダウンロード")
+    col_csv1, col_csv2 = st.columns(2)
+    with col_csv1:
+        _csv_download(df, f"mosh_payroll_summary_{ym}_{source.replace('（','_').replace('）','')}.csv",
+                       label="📥 月次サマリーCSV（スタッフ別合算）")
+    with col_csv2:
+        # Square 形式CSV（日次行データ）を生成
+        square_rows = _build_square_csv(staffs, ym, source, store_map=STORE_CODE_TO_NAME)
+        if square_rows:
+            square_df = pd.DataFrame(square_rows, columns=pl.SQUARE_CSV_COLUMNS)
+            _csv_download(square_df, f"square_{ym}_{source.replace('（','_').replace('）','')}.csv",
+                           label="📥 Square形式CSV（日次行データ）")
 
     # パスワード変更（owner のみ）
     if user.get("role") == "owner":
