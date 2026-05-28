@@ -113,6 +113,30 @@ def _inject_mobile_css():
 .mosh-clock-elapsed { font-size: 14px; margin-top: 12px; line-height: 1.7; }
 .mosh-clock-elapsed-h { font-size: 22px; font-weight: 700; }
 
+/* ─── 店舗シフト確定版カード ─── */
+.mosh-day-card {
+  background: #fff;
+  border: 1px solid #E5E1D6;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 10px 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.mosh-day-header {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #EFEAD8;
+  padding-bottom: 6px;
+}
+.mosh-staff-row {
+  font-size: 15px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  border-radius: 6px;
+  background: #FAFAF7;
+}
+
 /* ─── 打刻履歴カード ─── */
 .mosh-log-card {
   background: #FAFAF7;
@@ -616,6 +640,92 @@ def render_my_shift_tab(user: dict):
         "実労働": f"{c['split']['actual_hours']:.1f}h",
     } for c in shift_cards])
     _csv_download(df, f"my_shifts_{staff_id}_{ym}.csv")
+
+
+# ─────────────────────────────────────────
+# 2-2. 店舗シフト（確定版・全員閲覧可）
+# ─────────────────────────────────────────
+
+def render_confirmed_shifts_tab(user: dict):
+    """全員が見られる確定シフト閲覧画面（読み取り専用）"""
+    _inject_mobile_css()
+    st.markdown("### 📆 店舗シフト（確定版）")
+
+    # 自分の所属店舗をデフォルトに
+    staff_id = user.get("staff_id")
+    default_store = "kashiwa"
+    if staff_id:
+        my_staff = shift_db.get_staff(staff_id)
+        if my_staff:
+            default_store = my_staff.get("primary_store") or "kashiwa"
+
+    col1, col2 = st.columns(2)
+    with col1:
+        store_codes = [c for c, _ in STORE_OPTIONS]
+        idx = store_codes.index(default_store) if default_store in store_codes else 0
+        store_code = st.selectbox("店舗", store_codes,
+                                     index=idx,
+                                     format_func=lambda c: STORE_CODE_TO_NAME.get(c, c),
+                                     key="confirmed_store")
+    with col2:
+        today = date.today()
+        ym_options = []
+        for i in range(-1, 3):
+            d = (today.replace(day=1) + timedelta(days=32 * i)).replace(day=1)
+            ym_options.append(d.strftime("%Y-%m"))
+        ym = st.selectbox("月", ym_options, index=1, key="confirmed_ym")
+
+    # 確定シフト取得
+    shifts = shift_db.get_shifts_by_month(ym, store=store_code, status="confirmed")
+    if not shifts:
+        st.info(f"📭 {ym} の {STORE_CODE_TO_NAME.get(store_code)} の確定シフトはまだありません（管理者が公開すると表示されます）")
+        return
+
+    # 日付ごとにグルーピング
+    from collections import defaultdict
+    by_date = defaultdict(list)
+    for s in shifts:
+        by_date[s["shift_date"]].append(s)
+
+    weekday_jp = ["月", "火", "水", "木", "金", "土", "日"]
+    try:
+        import jpholiday
+        has_jpholiday = True
+    except Exception:
+        has_jpholiday = False
+
+    st.caption("💡 黄色ハイライトは自分のシフトです")
+
+    # 日付昇順でカード表示
+    for d in sorted(by_date.keys()):
+        wd = d.weekday()
+        is_holiday = has_jpholiday and jpholiday.is_holiday(d)
+        date_color = "#E25555" if (wd == 6 or is_holiday) else ("#4A90E2" if wd == 5 else "#2D1F0F")
+
+        shifts_html = ""
+        for s in sorted(by_date[d], key=lambda x: x["start_time"]):
+            is_self = staff_id and s["staff_id"] == staff_id
+            style = ' style="background:#FFF3CD;font-weight:700;border-left:3px solid #FFC107;"' if is_self else ''
+            time_str = _format_time_cell(s["start_time"], s["end_time"], s["crosses_midnight"])
+            shifts_html += f'<div class="mosh-staff-row"{style}>👤 {s["display_name"]}　⏰ {time_str}</div>'
+
+        st.markdown(f"""
+<div class="mosh-day-card">
+    <div class="mosh-day-header" style="color:{date_color};">
+        {d.month}/{d.day} ({weekday_jp[wd]}){'🟡祝日' if is_holiday else ''}
+    </div>
+    {shifts_html}
+</div>
+""", unsafe_allow_html=True)
+
+    # CSVエクスポート
+    rows = [{
+        "日付": s["shift_date"].strftime("%Y-%m-%d"),
+        "曜日": weekday_jp[s["shift_date"].weekday()],
+        "スタッフ": s["display_name"],
+        "時間帯": _format_time_cell(s["start_time"], s["end_time"], s["crosses_midnight"]),
+    } for s in sorted(shifts, key=lambda x: (x["shift_date"], x["start_time"]))]
+    _csv_download(pd.DataFrame(rows), f"confirmed_shifts_{store_code}_{ym}.csv")
 
 
 # ─────────────────────────────────────────

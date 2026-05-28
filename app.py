@@ -2629,41 +2629,45 @@ def _render_shift_section(user: dict):
     role = user.get("role", "staff")
 
     if role == "owner":
-        labels = ["📅 シフト作成", "🗓 マイシフト", "⏱ 打刻", "📝 シフト希望",
-                  "💰 給与計算", "👥 スタッフ管理", "🏪 店舗マスター", "📦 初期セットアップ"]
+        labels = ["🗓 マイシフト", "📆 店舗シフト", "⏱ 打刻", "📝 シフト希望",
+                  "📅 シフト作成", "💰 給与計算", "👥 スタッフ管理", "🏪 店舗マスター", "📦 初期セットアップ"]
         renders = [
-            shift_ui.render_shift_create_tab,
             shift_ui.render_my_shift_tab,
+            shift_ui.render_confirmed_shifts_tab,
             shift_ui.render_timecard_tab,
             shift_ui.render_shift_request_tab,
+            shift_ui.render_shift_create_tab,
             shift_ui.render_payroll_tab,
             shift_ui.render_staff_admin_tab,
             shift_ui.render_store_admin_tab,
             shift_ui.render_setup_tab,
         ]
     elif role == "payroll_admin":
-        labels = ["📅 シフト作成", "🗓 マイシフト", "⏱ 打刻", "📝 シフト希望",
-                  "💰 給与計算", "👥 スタッフ管理"]
+        labels = ["🗓 マイシフト", "📆 店舗シフト", "⏱ 打刻", "📝 シフト希望",
+                  "📅 シフト作成", "💰 給与計算", "👥 スタッフ管理"]
         renders = [
-            shift_ui.render_shift_create_tab,
             shift_ui.render_my_shift_tab,
+            shift_ui.render_confirmed_shifts_tab,
             shift_ui.render_timecard_tab,
             shift_ui.render_shift_request_tab,
+            shift_ui.render_shift_create_tab,
             shift_ui.render_payroll_tab,
             shift_ui.render_staff_admin_tab,
         ]
     elif role == "manager":
-        labels = ["📅 シフト作成", "🗓 マイシフト", "⏱ 打刻", "📝 シフト希望"]
+        labels = ["🗓 マイシフト", "📆 店舗シフト", "⏱ 打刻", "📝 シフト希望", "📅 シフト作成"]
         renders = [
-            shift_ui.render_shift_create_tab,
             shift_ui.render_my_shift_tab,
+            shift_ui.render_confirmed_shifts_tab,
             shift_ui.render_timecard_tab,
             shift_ui.render_shift_request_tab,
+            shift_ui.render_shift_create_tab,
         ]
     else:
-        labels = ["🗓 マイシフト", "⏱ 打刻", "📝 シフト希望"]
+        labels = ["🗓 マイシフト", "📆 店舗シフト", "⏱ 打刻", "📝 シフト希望"]
         renders = [
             shift_ui.render_my_shift_tab,
+            shift_ui.render_confirmed_shifts_tab,
             shift_ui.render_timecard_tab,
             shift_ui.render_shift_request_tab,
         ]
