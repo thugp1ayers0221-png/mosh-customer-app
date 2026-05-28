@@ -2860,10 +2860,8 @@ else:
                     ("打刻",             ["owner", "payroll_admin", "manager", "staff"]),
                     ("シフト希望",       ["owner", "payroll_admin", "manager", "staff"]),
                 ]),
-                ("シフト管理", [
-                    ("シフト作成",       ["owner", "payroll_admin", "manager"]),
-                ]),
                 ("本部操作", [
+                    ("シフト作成",       ["owner", "payroll_admin", "manager"]),
                     ("給与計算",         ["owner", "payroll_admin"]),
                     ("スタッフ管理",     ["owner", "payroll_admin"]),
                     ("店舗マスター",     ["owner"]),

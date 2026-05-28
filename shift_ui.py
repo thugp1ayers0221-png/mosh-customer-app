@@ -1554,8 +1554,8 @@ def render_setup_tab(user: dict):
 - シフト管理用5テーブルを Supabase に作成（既存なら何もしない）
 - 店舗マスター（5店舗）を初期投入
 - スタッフマスターに全30名を投入
-- 認証アカウントを30名分発行（初期PW: `MOSH4148`）
-- 賃金画面パスワード設定（`datakintaimosh`）
+- 認証アカウントを30名分発行（初期パスワードはオーナーから別途配布）
+- 賃金画面・シフト管理画面のパスワードを初期化
 
 **冪等です**：何度実行しても既存データは保護されます。
 """)
@@ -2071,7 +2071,7 @@ def render_staff_admin_tab(user: dict):
                                 with conn.cursor() as cur:
                                     cur.execute("UPDATE users SET staff_id = %s WHERE username = %s",
                                                 (staff_id, new_username.strip()))
-                            st.success(f"✅ {new_display_name} を追加しました（初期PW: MOSH4148）")
+                            st.success(f"✅ {new_display_name} を追加しました（初期パスワードはオーナーから別途共有）")
                             st.rerun()
                     except Exception as e:
                         st.error(f"追加失敗: {e}")
