@@ -15,6 +15,8 @@ import os
 import html as _html
 import importlib
 import mosh_db as db
+import shift_db
+import shift_ui
 
 # MOSHロゴをbase64エンコード
 _logo_b64 = ""
@@ -78,6 +80,7 @@ st.set_page_config(
 if "db_migrated" not in st.session_state:
     try:
         db.migrate_db()
+        shift_db.migrate_shift_db()
         st.session_state.db_migrated = True
     except Exception:
         pass
@@ -2619,6 +2622,59 @@ def show_operations():
             st.info("💡 画像生成にはGoogle AI APIキーの設定が必要です")
 
 # ─────────────────────────────────────────
+# シフト管理セクション
+# ─────────────────────────────────────────
+def _render_shift_section(user: dict):
+    """シフト管理メインタブ。権限によってサブタブを出し分ける"""
+    role = user.get("role", "staff")
+
+    if role == "owner":
+        labels = ["📅 シフト作成", "🗓 マイシフト", "⏱ 打刻", "📝 シフト希望",
+                  "💰 給与計算", "👥 スタッフ管理", "🏪 店舗マスター", "📦 初期セットアップ"]
+        renders = [
+            shift_ui.render_shift_create_tab,
+            shift_ui.render_my_shift_tab,
+            shift_ui.render_timecard_tab,
+            shift_ui.render_shift_request_tab,
+            shift_ui.render_payroll_tab,
+            shift_ui.render_staff_admin_tab,
+            shift_ui.render_store_admin_tab,
+            shift_ui.render_setup_tab,
+        ]
+    elif role == "payroll_admin":
+        labels = ["📅 シフト作成", "🗓 マイシフト", "⏱ 打刻", "📝 シフト希望",
+                  "💰 給与計算", "👥 スタッフ管理"]
+        renders = [
+            shift_ui.render_shift_create_tab,
+            shift_ui.render_my_shift_tab,
+            shift_ui.render_timecard_tab,
+            shift_ui.render_shift_request_tab,
+            shift_ui.render_payroll_tab,
+            shift_ui.render_staff_admin_tab,
+        ]
+    elif role == "manager":
+        labels = ["📅 シフト作成", "🗓 マイシフト", "⏱ 打刻", "📝 シフト希望"]
+        renders = [
+            shift_ui.render_shift_create_tab,
+            shift_ui.render_my_shift_tab,
+            shift_ui.render_timecard_tab,
+            shift_ui.render_shift_request_tab,
+        ]
+    else:
+        labels = ["🗓 マイシフト", "⏱ 打刻", "📝 シフト希望"]
+        renders = [
+            shift_ui.render_my_shift_tab,
+            shift_ui.render_timecard_tab,
+            shift_ui.render_shift_request_tab,
+        ]
+
+    sub_tabs = st.tabs(labels)
+    for tab, render_fn in zip(sub_tabs, renders):
+        with tab:
+            render_fn(user)
+
+
+# ─────────────────────────────────────────
 # メインルーティング
 # ─────────────────────────────────────────
 _invite_token = st.query_params.get("invite", None)
@@ -2716,21 +2772,32 @@ else:
         show_detail()
     else:
         user = st.session_state.user
+
+        # 権限ベースのタブ構成
         if user["role"] == "owner":
-            tab_home, tab_dash, tab_ops, tab_users = st.tabs(["👥 顧客一覧", "📊 ダッシュボード", "📢 今日の営業", "⚙️ ユーザー管理"])
-            with tab_home:
-                show_home()
-            with tab_dash:
-                show_dashboard()
-            with tab_ops:
-                show_operations()
+            tab_home, tab_dash, tab_ops, tab_shift, tab_users = st.tabs(
+                ["👥 顧客一覧", "📊 ダッシュボード", "📢 今日の営業", "📅 シフト管理", "⚙️ ユーザー管理"]
+            )
+        elif user["role"] in ("payroll_admin", "manager"):
+            tab_home, tab_dash, tab_ops, tab_shift = st.tabs(
+                ["👥 顧客一覧", "📊 ダッシュボード", "📢 今日の営業", "📅 シフト管理"]
+            )
+            tab_users = None
+        else:
+            # 一般スタッフは顧客系を見せず、シフト管理のみ
+            tab_shift, tab_home, tab_dash, tab_ops = st.tabs(
+                ["📅 シフト管理", "👥 顧客一覧", "📊 ダッシュボード", "📢 今日の営業"]
+            )
+            tab_users = None
+
+        with tab_home:
+            show_home()
+        with tab_dash:
+            show_dashboard()
+        with tab_ops:
+            show_operations()
+        with tab_shift:
+            _render_shift_section(user)
+        if tab_users is not None:
             with tab_users:
                 show_user_management()
-        else:
-            tab_home, tab_dash, tab_ops = st.tabs(["👥 顧客一覧", "📊 ダッシュボード", "📢 今日の営業"])
-            with tab_home:
-                show_home()
-            with tab_dash:
-                show_dashboard()
-            with tab_ops:
-                show_operations()
