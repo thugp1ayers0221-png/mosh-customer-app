@@ -921,19 +921,11 @@ def render_my_shift_tab(user: dict):
         shift_cards.append({"shift": s, "split": split, "pay_total": sum(pay.values())})
 
     # サマリーカード
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         st.metric("出勤日数", f"{len(shift_cards)}日")
     with col2:
         st.metric("実労働", f"{total_actual:.1f}h")
-    with col3:
-        if staff["employment_type"] == "社員":
-            label = "月給"
-            val = f"¥{staff['base_monthly_salary']:,}" if staff["base_monthly_salary"] else "未設定"
-        else:
-            label = "予定収入"
-            val = f"¥{total_expected_pay:,}" if total_expected_pay else "—"
-        st.metric(label, val)
 
     if not shift_cards:
         st.info("この月の確定シフトはまだ公開されていません")
