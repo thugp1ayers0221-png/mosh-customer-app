@@ -211,16 +211,22 @@ def _shift_to_datetimes(shift_date: date, start_t: time, end_t: time, crosses: b
 # ─────────────────────────────────────────
 
 def render_shift_create_tab(user: dict):
-    st.markdown("### 📅 シフト管理")
+    st.markdown("### 📅 シフト作成（下書き）")
 
     if not _is_manager_or_above(user):
         st.warning("この画面は管理者専用です。")
         return
 
+    # シフト管理パスワード保護
+    if not require_shift_admin_unlock("create"):
+        return
+
+    # スマホ警告（編集はPC推奨）
+    st.info("💻 シフト編集は **PCでの操作を推奨** します。スマホでは閲覧のみ快適です。")
+
     # 店舗選択（managerは自店舗のみ）
     available_codes = [c for c, _ in STORE_OPTIONS]
     if user.get("role") == "manager" and user.get("store"):
-        # 既存usersテーブルでは表示名で保存されているのでマップで変換
         mapped = STORE_NAME_TO_CODE.get(user["store"]) or user["store"]
         available_codes = [mapped] if mapped in dict(STORE_OPTIONS) else available_codes
 
@@ -247,14 +253,47 @@ def render_shift_create_tab(user: dict):
     _, days_in_month = calendar.monthrange(year, month)
     days = list(range(1, days_in_month + 1))
 
-    # スタッフ取得（経営者など include_in_shift=false は除外）
+    # スタッフ取得（経営者は除外）
     staffs = shift_db.get_all_staff(active_only=True, store=store_code, for_shift_only=True)
     if not staffs:
         st.info("この店舗で勤務可能なスタッフがまだ登録されていません。")
         return
 
+    # ── アクションボタン（希望反映・全公開）──
+    st.markdown("#### ⚡ アクション")
+    act1, act2, act3 = st.columns(3)
+    with act1:
+        if st.button("💡 シフト希望から下書き反映", use_container_width=True, key="import_req"):
+            n = shift_db.import_requests_to_draft(ym, store_code, created_by=user.get("id"))
+            if n > 0:
+                st.success(f"✅ {n}件のシフトを希望から下書きに反映しました")
+                st.rerun()
+            else:
+                st.info("反映すべき新規希望はありませんでした（既存シフトは上書きしません）")
+    with act2:
+        if st.button("📌 下書きを全員に公開（確定）", type="primary", use_container_width=True, key="confirm_all"):
+            n = shift_db.confirm_shifts(ym, store_code)
+            if n > 0:
+                st.success(f"✅ {n}件のシフトを公開しました。スタッフのマイシフトに反映されます。")
+                st.rerun()
+            else:
+                st.info("公開対象の下書きシフトがありませんでした")
+    with act3:
+        if st.button("↩️ 公開を取消（下書きに戻す）", use_container_width=True, key="revert_draft"):
+            n = shift_db.revert_to_draft(ym, store_code)
+            if n > 0:
+                st.warning(f"⚠️ {n}件のシフトを下書きに戻しました")
+                st.rerun()
+            else:
+                st.info("取消対象の確定シフトがありませんでした")
+
+    # 表示モード（下書き編集 or 確定確認）
+    view_mode = st.radio("表示モード", ["下書き編集", "確定済み（読み取り専用）", "全部"],
+                          horizontal=True, key="shift_view_mode")
+    status_filter = {"下書き編集": "draft", "確定済み（読み取り専用）": "confirmed", "全部": None}[view_mode]
+
     # シフト取得
-    shifts = shift_db.get_shifts_by_month(ym, store=store_code)
+    shifts = shift_db.get_shifts_by_month(ym, store=store_code, status=status_filter)
     shift_map = {}
     for s in shifts:
         shift_map[(s["staff_id"], s["shift_date"].day)] = s
@@ -280,27 +319,17 @@ def render_shift_create_tab(user: dict):
         except Exception:
             day_headers.append(str(d))
 
-    # DataFrame作成（列ヘッダーに曜日付き）
+    # DataFrame作成（列ヘッダーに曜日付き・スタッフ名はシンプルに）
     rows = []
     for staff in staffs:
-        # スタッフ名に役職プレフィックス
-        pos = staff.get("position", "")
-        if pos in ("店長",):
-            name_display = f"👑 {staff['display_name']}"
-        elif pos in ("副店長", "店長代理（共同）"):
-            name_display = f"⭐ {staff['display_name']}"
-        elif pos == "研修生":
-            name_display = f"🌱 {staff['display_name']}"
-        else:
-            name_display = staff["display_name"]
-        row = {"スタッフ": name_display, "_staff_id": staff["id"]}
+        row = {"スタッフ": staff["display_name"], "_staff_id": staff["id"]}
         for d, header in zip(days, day_headers):
             sh = shift_map.get((staff["id"], d))
             row[header] = _format_time_cell(sh["start_time"], sh["end_time"], sh["crosses_midnight"]) if sh else ""
         rows.append(row)
     df = pd.DataFrame(rows)
 
-    st.caption("💡 例: `15-24`（15時〜24時）/ `15-29`（15時〜翌5時）/ 休みは空欄・`休`・`×`・`ー` / 👑店長 ⭐副店長・代理 🌱研修中")
+    st.caption("💡 例: `15-24`（15時〜24時）/ `15-29`（15時〜翌5時）/ 休みは空欄・`休`・`×`・`ー`")
 
     # 各日付列の幅を狭く
     column_config = {"スタッフ": st.column_config.TextColumn(width="small", pinned="left")}
@@ -378,6 +407,7 @@ def _save_shift_changes(edited_df: pd.DataFrame, original_df: pd.DataFrame,
                         staff_id=staff_id, store=store_code, shift_date=shift_date,
                         start_time=start_t, end_time=end_t,
                         crosses_midnight=crosses, created_by=user_id,
+                        status="draft",  # 編集は常に下書き状態
                     )
                     changes += 1
                 except Exception as e:
@@ -410,7 +440,7 @@ def _render_shift_summary(staffs: list, shifts: list, store_code: str, ym: str, 
         summaries.append({
             "スタッフ": staff["display_name"],
             "出勤日数": len(staff_shifts),
-            "拘束時間": f"{total_raw:.1f}h",
+            "想定時間": f"{total_raw:.1f}h",
             "実労働時間": f"{total_actual:.1f}h",
             "雇用形態": staff["employment_type"],
             "_actual_hours": total_actual,
@@ -483,11 +513,10 @@ def render_my_shift_tab(user: dict):
         st.error("スタッフ情報が見つかりません。")
         return
 
-    # スタッフ情報ヘッダーカード
-    pos_emoji = {"店長": "👑", "副店長": "⭐", "店長代理（共同）": "⭐", "研修生": "🌱"}.get(staff.get("position",""), "👤")
+    # スタッフ情報ヘッダーカード（役職プレフィックスなし）
     st.markdown(f"""
 <div class="mosh-staff-header">
-    <div class="mosh-staff-name">{pos_emoji} {staff['display_name']}</div>
+    <div class="mosh-staff-name">{staff['display_name']}</div>
     <div class="mosh-staff-meta">🏪 {STORE_CODE_TO_NAME.get(staff['primary_store'], staff['primary_store'])}　/　{staff.get('position', 'スタッフ')}</div>
 </div>
 """, unsafe_allow_html=True)
@@ -500,7 +529,8 @@ def render_my_shift_tab(user: dict):
         ym_options.append(d.strftime("%Y-%m"))
     ym = st.selectbox("月を選択", ym_options, index=1, key="my_shift_ym")
 
-    shifts = shift_db.get_shifts_by_month(ym, staff_id=staff_id)
+    # 確定済みシフトのみ表示（下書きはマイシフトに見えない）
+    shifts = shift_db.get_shifts_by_month(ym, staff_id=staff_id, status="confirmed")
 
     # 月次サマリー（先に計算）
     total_actual = 0.0
@@ -538,7 +568,7 @@ def render_my_shift_tab(user: dict):
         st.metric(label, val)
 
     if not shift_cards:
-        st.info("📭 この月のシフトはまだ登録されていません")
+        st.info("📭 この月の確定シフトはまだありません（管理者が公開すると表示されます）")
         return
 
     st.markdown("---")
@@ -573,7 +603,7 @@ def render_my_shift_tab(user: dict):
     <div class="mosh-shift-time">⏰ {time_label}</div>
     <div class="mosh-shift-hours">
         実労働 <strong>{sp['actual_hours']:.1f}h</strong>
-        <span class="mosh-shift-sub">（拘束 {sp['raw_hours']:.1f}h / 休憩 {sp['break_minutes']}分）</span>
+        <span class="mosh-shift-sub">（想定 {sp['raw_hours']:.1f}h / 休憩 {sp['break_minutes']}分）</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -605,23 +635,29 @@ def render_timecard_tab(user: dict):
     staff = shift_db.get_staff(staff_id)
     open_log = shift_db.get_open_time_log(staff_id)
 
-    # 現在時刻
-    now = datetime.now()
-    pos_emoji = {"店長": "👑", "副店長": "⭐", "店長代理（共同）": "⭐", "研修生": "🌱"}.get(staff.get("position",""), "👤")
+    # 現在時刻（JST明示）
+    now = shift_db.now_jst()
 
     if open_log:
         # 出勤中
         clock_in_time = open_log["clock_in"]
-        elapsed = (datetime.now(clock_in_time.tzinfo) - clock_in_time)
+        # DB から取得した clock_in_time が naive datetime（UTCで保存された場合）の対応
+        if clock_in_time.tzinfo is None:
+            # Postgres TIMESTAMPTZ から取り出されたものは tzinfo を持つはず。
+            # 念のため tzinfo がない場合は UTC とみなして JST に変換
+            from datetime import timezone as _tz
+            clock_in_time = clock_in_time.replace(tzinfo=_tz.utc)
+        clock_in_jst = clock_in_time.astimezone(shift_db.JST)
+        elapsed = now - clock_in_jst
         elapsed_h = elapsed.total_seconds() / 3600
         st.markdown(f"""
 <div class="mosh-clock-card clock-status-active">
-    <div class="mosh-clock-staff">{pos_emoji} {staff['display_name']}</div>
+    <div class="mosh-clock-staff">{staff['display_name']}</div>
     <div class="mosh-clock-store">🏪 {STORE_CODE_TO_NAME.get(open_log['store'], open_log['store'])}</div>
     <div class="mosh-clock-now">🕐 現在 {now.strftime('%H:%M')}</div>
     <div class="mosh-clock-status">🟢 出勤中</div>
     <div class="mosh-clock-elapsed">
-        出勤 {clock_in_time.strftime('%H:%M')} から<br>
+        出勤 {clock_in_jst.strftime('%H:%M')} から<br>
         <span class="mosh-clock-elapsed-h">{elapsed_h:.1f} 時間</span>
     </div>
 </div>
@@ -636,7 +672,7 @@ def render_timecard_tab(user: dict):
         # 未出勤
         st.markdown(f"""
 <div class="mosh-clock-card clock-status-idle">
-    <div class="mosh-clock-staff">{pos_emoji} {staff['display_name']}</div>
+    <div class="mosh-clock-staff">{staff['display_name']}</div>
     <div class="mosh-clock-now">🕐 現在 {now.strftime('%H:%M')}</div>
     <div class="mosh-clock-status">⚪ 未出勤</div>
 </div>
@@ -667,12 +703,15 @@ def render_timecard_tab(user: dict):
         for log in logs:
             ci = log["clock_in"]
             co = log["clock_out"]
-            if ci and co:
-                split = pl.split_work_hours(ci.replace(tzinfo=None), co.replace(tzinfo=None),
+            # JST に変換して表示
+            ci_jst = ci.astimezone(shift_db.JST) if ci and ci.tzinfo else ci
+            co_jst = co.astimezone(shift_db.JST) if co and co.tzinfo else co
+            if ci_jst and co_jst:
+                split = pl.split_work_hours(ci_jst.replace(tzinfo=None), co_jst.replace(tzinfo=None),
                                              staff["employment_type"])
-                status_str = f"⏰ {ci.strftime('%H:%M')} - {co.strftime('%H:%M')} / 実労働 {split['actual_hours']:.1f}h"
+                status_str = f"⏰ {ci_jst.strftime('%H:%M')} - {co_jst.strftime('%H:%M')} / 実労働 {split['actual_hours']:.1f}h"
             else:
-                status_str = f"⏰ {ci.strftime('%H:%M')} - 🟢出勤中"
+                status_str = f"⏰ {ci_jst.strftime('%H:%M')} - 🟢出勤中"
             st.markdown(f"""
 <div class="mosh-log-card">
     <div class="mosh-log-date">{log['work_date'].month}/{log['work_date'].day}</div>
@@ -683,8 +722,8 @@ def render_timecard_tab(user: dict):
         rows = [{
             "日付": log["work_date"].strftime("%Y-%m-%d"),
             "店舗": STORE_CODE_TO_NAME.get(log["store"], log["store"]),
-            "出勤": log["clock_in"].strftime("%H:%M") if log["clock_in"] else "",
-            "退勤": log["clock_out"].strftime("%H:%M") if log["clock_out"] else "",
+            "出勤": (log["clock_in"].astimezone(shift_db.JST).strftime("%H:%M") if log["clock_in"] and log["clock_in"].tzinfo else (log["clock_in"].strftime("%H:%M") if log["clock_in"] else "")),
+            "退勤": (log["clock_out"].astimezone(shift_db.JST).strftime("%H:%M") if log["clock_out"] and log["clock_out"].tzinfo else (log["clock_out"].strftime("%H:%M") if log["clock_out"] else "")),
         } for log in logs]
         _csv_download(pd.DataFrame(rows), f"my_timelogs_{staff_id}_{ym}.csv")
 
@@ -719,11 +758,10 @@ def _render_submit_request(user: dict, ym: str):
         return
     staff = shift_db.get_staff(staff_id)
 
-    # ヘッダーカード
-    pos_emoji = {"店長": "👑", "副店長": "⭐", "店長代理（共同）": "⭐", "研修生": "🌱"}.get(staff.get("position",""), "👤")
+    # ヘッダーカード（役職プレフィックスなし）
     st.markdown(f"""
 <div class="mosh-staff-header">
-    <div class="mosh-staff-name">{pos_emoji} {staff['display_name']}</div>
+    <div class="mosh-staff-name">{staff['display_name']}</div>
     <div class="mosh-staff-meta">📅 {ym} のシフト希望を提出</div>
 </div>
 """, unsafe_allow_html=True)
@@ -847,6 +885,10 @@ def render_setup_tab(user: dict):
         st.error("この画面は owner 専用です")
         return
 
+    # 経営陣パスワードで保護
+    if not require_payroll_unlock("setup"):
+        return
+
     st.markdown("""
 シフト管理ツールの**初回セットアップ**を行います。
 
@@ -911,7 +953,9 @@ def _run_setup():
 
 
 PAYROLL_UNLOCK_KEY = "payroll_unlocked_at"
+SHIFT_ADMIN_UNLOCK_KEY = "shift_admin_unlocked_at"
 PAYROLL_TIMEOUT_SEC = 30 * 60  # 30分
+SHIFT_ADMIN_TIMEOUT_SEC = 30 * 60
 
 
 def _payroll_unlocked() -> bool:
@@ -922,6 +966,32 @@ def _payroll_unlocked() -> bool:
         st.session_state.pop(PAYROLL_UNLOCK_KEY, None)
         return False
     return True
+
+
+def _shift_admin_unlocked() -> bool:
+    ts = st.session_state.get(SHIFT_ADMIN_UNLOCK_KEY)
+    if not ts:
+        return False
+    if (datetime.now() - ts).total_seconds() > SHIFT_ADMIN_TIMEOUT_SEC:
+        st.session_state.pop(SHIFT_ADMIN_UNLOCK_KEY, None)
+        return False
+    return True
+
+
+def require_shift_admin_unlock(context: str = "default") -> bool:
+    """シフト作成画面用セカンドパスワード（経営陣・店長級共有）"""
+    if _shift_admin_unlocked():
+        return True
+    st.warning("🔒 シフト作成画面は専用パスワードで保護されています（経営陣・店長共有）")
+    pw = st.text_input("シフト管理パスワード", type="password", key=f"shift_pw_input_{context}")
+    if st.button("🔓 ロック解除", key=f"shift_unlock_btn_{context}"):
+        if shift_db.verify_shift_admin_password(pw):
+            st.session_state[SHIFT_ADMIN_UNLOCK_KEY] = datetime.now()
+            st.success("✅ ロック解除しました（30分間有効）")
+            st.rerun()
+        else:
+            st.error("❌ パスワードが違います")
+    return False
 
 
 def require_payroll_unlock(context: str = "default") -> bool:
@@ -1019,7 +1089,7 @@ def render_payroll_tab(user: dict):
             "店舗": STORE_CODE_TO_NAME.get(staff["primary_store"], staff["primary_store"]),
             "雇用": staff["employment_type"],
             "出勤日数": monthly["shift_days"],
-            "拘束h": round(monthly["raw_hours"], 1),
+            "想定h": round(monthly["raw_hours"], 1),
             "休憩(分)": monthly["break_minutes"],
             "実労働h": round(monthly["actual_hours"], 1),
             "通常h": round(monthly["regular_hours"], 1),
@@ -1054,15 +1124,25 @@ def render_payroll_tab(user: dict):
     # パスワード変更（owner のみ）
     if user.get("role") == "owner":
         st.markdown("---")
-        with st.expander("🔧 経営陣パスワード変更"):
+        with st.expander("🔧 経営陣パスワード変更（給与・スタッフ管理用）"):
             new_pw = st.text_input("新しいパスワード", type="password", key="new_payroll_pw")
             new_pw2 = st.text_input("確認用パスワード", type="password", key="new_payroll_pw2")
-            if st.button("変更を保存"):
+            if st.button("変更を保存", key="save_payroll_pw"):
                 if not new_pw or new_pw != new_pw2:
                     st.error("パスワードが一致しません")
                 else:
                     shift_db.update_payroll_password(new_pw)
                     st.success("✅ パスワードを変更しました")
+
+        with st.expander("🔧 シフト管理パスワード変更（店長・経営陣共有）"):
+            new_pw3 = st.text_input("新しいパスワード", type="password", key="new_shift_pw")
+            new_pw4 = st.text_input("確認用パスワード", type="password", key="new_shift_pw2")
+            if st.button("変更を保存", key="save_shift_pw"):
+                if not new_pw3 or new_pw3 != new_pw4:
+                    st.error("パスワードが一致しません")
+                else:
+                    shift_db.update_shift_admin_password(new_pw3)
+                    st.success("✅ シフト管理パスワードを変更しました")
 
 
 # ─────────────────────────────────────────

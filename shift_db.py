@@ -13,10 +13,18 @@ MOSH シフト管理 DB操作
 import os
 import hashlib
 from contextlib import contextmanager
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, time, timedelta, timezone
 from typing import Optional
 
 import mosh_db as base_db
+
+# JST固定（Streamlit CloudはUTCで動くため明示）
+JST = timezone(timedelta(hours=9))
+
+
+def now_jst() -> datetime:
+    """日本時間（タイムゾーン情報付き）のdatetimeを返す"""
+    return datetime.now(tz=JST)
 
 
 # ─────────────────────────────────────────
@@ -161,6 +169,14 @@ def migrate_shift_db():
                     updated_at TIMESTAMP DEFAULT NOW()
                 )
             """)
+            # ── shift_admin_lock（シフト作成画面用セカンドパスワード・店長級共有）──
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS shift_admin_lock (
+                    id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+                    password_hash TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
 
             # ── インデックス ──
             cur.execute("CREATE INDEX IF NOT EXISTS idx_shifts_date_store ON shifts(shift_date, store)")
@@ -209,12 +225,32 @@ def _seed_initial_data():
                     ON CONFLICT (code) DO NOTHING
                 """, (code, name, target, ratio, ot, ct, fc, sort))
 
-            # 賃金パスワード初期値: datakintaimosh
+            # 賃金パスワード初期値: datakintaimosh（経営陣4名共有）
             cur.execute("""
                 INSERT INTO payroll_lock (id, password_hash)
                 VALUES (1, %s)
                 ON CONFLICT (id) DO NOTHING
             """, (_hash("datakintaimosh"),))
+
+            # シフト作成パスワード初期値: moshshift（経営陣+店長共有）
+            cur.execute("""
+                INSERT INTO shift_admin_lock (id, password_hash)
+                VALUES (1, %s)
+                ON CONFLICT (id) DO NOTHING
+            """, (_hash("moshshift"),))
+
+            # 経営者（代表・共同経営）を自動的にシフト管理対象外に
+            cur.execute("""
+                UPDATE staff_master
+                SET include_in_shift = false
+                WHERE position IN ('代表', '共同経営')
+            """)
+
+            # 既存 shifts の 'planned' を 'draft' に変換
+            try:
+                cur.execute("UPDATE shifts SET status = 'draft' WHERE status = 'planned'")
+            except Exception:
+                pass
 
 
 # ─────────────────────────────────────────
@@ -265,7 +301,11 @@ def get_all_staff(active_only: bool = True, store: Optional[str] = None,
             if active_only:
                 sql += " AND sm.active = true"
             if for_shift_only:
-                sql += " AND COALESCE(sm.include_in_shift, true) = true"
+                # include_in_shift フラグ + 経営者役職（代表・共同経営・マネージャー）も除外
+                sql += """
+                    AND COALESCE(sm.include_in_shift, true) = true
+                    AND sm.position NOT IN ('代表', '共同経営')
+                """
             if store:
                 sql += " AND (sm.primary_store = %s OR %s = ANY(sm.available_stores))"
                 params.extend([store, store])
@@ -353,8 +393,11 @@ def deactivate_staff(staff_id: int):
 # ─────────────────────────────────────────
 
 def get_shifts_by_month(year_month: str, store: Optional[str] = None,
-                          staff_id: Optional[int] = None) -> list:
-    """year_month: 'YYYY-MM'"""
+                          staff_id: Optional[int] = None,
+                          status: Optional[str] = None) -> list:
+    """year_month: 'YYYY-MM'
+    status: 'draft' / 'confirmed' / None（全部）
+    """
     with get_conn() as conn:
         with conn.cursor() as cur:
             sql = """
@@ -373,6 +416,9 @@ def get_shifts_by_month(year_month: str, store: Optional[str] = None,
             if staff_id:
                 sql += " AND s.staff_id = %s"
                 params.append(staff_id)
+            if status:
+                sql += " AND s.status = %s"
+                params.append(status)
             sql += " ORDER BY s.shift_date, s.start_time"
             cur.execute(sql, params)
             return [dict(r) for r in cur.fetchall()]
@@ -381,13 +427,15 @@ def get_shifts_by_month(year_month: str, store: Optional[str] = None,
 def upsert_shift(staff_id: int, store: str, shift_date: date,
                   start_time: time, end_time: time,
                   crosses_midnight: bool = False, is_legal_holiday: bool = False,
-                  note: str = "", created_by: Optional[int] = None) -> int:
+                  note: str = "", created_by: Optional[int] = None,
+                  status: str = "draft") -> int:
+    """シフトをUPSERT。デフォルトは draft（下書き）"""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO shifts (staff_id, store, shift_date, start_time, end_time,
-                                    crosses_midnight, is_legal_holiday, note, created_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    crosses_midnight, is_legal_holiday, status, note, created_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (staff_id, shift_date, store, start_time)
                 DO UPDATE SET end_time = EXCLUDED.end_time,
                               crosses_midnight = EXCLUDED.crosses_midnight,
@@ -396,7 +444,7 @@ def upsert_shift(staff_id: int, store: str, shift_date: date,
                               updated_at = NOW()
                 RETURNING id
             """, (staff_id, store, shift_date, start_time, end_time,
-                  crosses_midnight, is_legal_holiday, note, created_by))
+                  crosses_midnight, is_legal_holiday, status, note, created_by))
             return cur.fetchone()["id"]
 
 
@@ -406,13 +454,103 @@ def delete_shift(shift_id: int):
             cur.execute("DELETE FROM shifts WHERE id = %s", (shift_id,))
 
 
+def confirm_shifts(year_month: str, store: Optional[str] = None) -> int:
+    """指定範囲の draft シフトを confirmed に変更（全員に公開）。戻り値: 変更件数"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            sql = """
+                UPDATE shifts SET status = 'confirmed', updated_at = NOW()
+                WHERE TO_CHAR(shift_date, 'YYYY-MM') = %s AND status = 'draft'
+            """
+            params = [year_month]
+            if store:
+                sql += " AND store = %s"
+                params.append(store)
+            cur.execute(sql, params)
+            return cur.rowcount
+
+
+def revert_to_draft(year_month: str, store: Optional[str] = None) -> int:
+    """指定範囲の confirmed シフトを draft に戻す（公開取消）。戻り値: 変更件数"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            sql = """
+                UPDATE shifts SET status = 'draft', updated_at = NOW()
+                WHERE TO_CHAR(shift_date, 'YYYY-MM') = %s AND status = 'confirmed'
+            """
+            params = [year_month]
+            if store:
+                sql += " AND store = %s"
+                params.append(store)
+            cur.execute(sql, params)
+            return cur.rowcount
+
+
+def import_requests_to_draft(year_month: str, store: str, created_by: Optional[int] = None) -> int:
+    """シフト希望（available/preferred）から draft シフトを自動生成。
+    既存シフトは上書きしない。戻り値: 新規作成件数。
+    available（出れる）はその店舗の標準時間で、preferred（時間指定）は希望時間で作成。
+    """
+    requests = get_shift_requests(year_month)
+    stores = {s["code"]: s for s in get_stores_master()}
+    created = 0
+    # その店舗で勤務可能なスタッフ
+    eligible_staff = {s["id"]: s for s in get_all_staff(active_only=True, store=store, for_shift_only=True)}
+
+    for r in requests:
+        if r["request_type"] not in ("available", "preferred"):
+            continue
+        if r["staff_id"] not in eligible_staff:
+            continue
+        # 既存シフトがあればスキップ
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id FROM shifts
+                    WHERE staff_id = %s AND shift_date = %s AND store = %s
+                """, (r["staff_id"], r["request_date"], store))
+                if cur.fetchone():
+                    continue
+
+        # 時間決定
+        if r["request_type"] == "preferred" and r["preferred_start"] and r["preferred_end"]:
+            start_t = r["preferred_start"]
+            end_t = r["preferred_end"]
+        else:
+            # 標準時間（店舗の open_time〜close_time）
+            store_info = stores.get(store)
+            try:
+                ot_parts = (store_info["open_time"] if store_info else "15:00").split(":")
+                start_t = time(int(ot_parts[0]) % 24, int(ot_parts[1]) if len(ot_parts) > 1 else 0)
+            except Exception:
+                start_t = time(15, 0)
+            try:
+                ct_parts = (store_info["close_time"] if store_info else "24:00").split(":")
+                ch = int(ct_parts[0])
+                crosses = ch >= 24
+                end_t = time(ch % 24, int(ct_parts[1]) if len(ct_parts) > 1 else 0)
+            except Exception:
+                end_t = time(0, 0)
+                crosses = True
+        crosses_midnight = (end_t <= start_t)
+
+        upsert_shift(
+            staff_id=r["staff_id"], store=store, shift_date=r["request_date"],
+            start_time=start_t, end_time=end_t,
+            crosses_midnight=crosses_midnight, note=f"希望反映: {r['request_type']}",
+            created_by=created_by, status="draft",
+        )
+        created += 1
+    return created
+
+
 # ─────────────────────────────────────────
 # 打刻ログ
 # ─────────────────────────────────────────
 
 def clock_in(staff_id: int, store: str, shift_id: Optional[int] = None,
               now: Optional[datetime] = None) -> int:
-    now = now or datetime.now()
+    now = now or now_jst()
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -424,7 +562,7 @@ def clock_in(staff_id: int, store: str, shift_id: Optional[int] = None,
 
 
 def clock_out(time_log_id: int, now: Optional[datetime] = None):
-    now = now or datetime.now()
+    now = now or now_jst()
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("UPDATE time_logs SET clock_out = %s, updated_at = NOW() WHERE id = %s",
@@ -528,6 +666,25 @@ def update_payroll_password(new_password: str):
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE payroll_lock SET password_hash = %s, updated_at = NOW() WHERE id = 1
+            """, (_hash(new_password),))
+
+
+def verify_shift_admin_password(password: str) -> bool:
+    """シフト作成画面用セカンドパスワード（店長級共有）"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT password_hash FROM shift_admin_lock WHERE id = 1")
+            r = cur.fetchone()
+            if not r:
+                return False
+            return r["password_hash"] == _hash(password)
+
+
+def update_shift_admin_password(new_password: str):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE shift_admin_lock SET password_hash = %s, updated_at = NOW() WHERE id = 1
             """, (_hash(new_password),))
 
 
