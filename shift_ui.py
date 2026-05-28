@@ -101,6 +101,105 @@ section[data-testid="stMain"] .block-container {
   max-width: 100% !important;
 }
 
+/* ─── Streamlit ネイティブサイドバー Square風 ─── */
+section[data-testid="stSidebar"] {
+  background: var(--sq-bg) !important;
+  border-right: 1px solid var(--sq-border) !important;
+  width: 250px !important;
+  min-width: 250px !important;
+}
+section[data-testid="stSidebar"] > div:first-child {
+  padding-top: 8px !important;
+  background: var(--sq-bg) !important;
+}
+section[data-testid="stSidebar"] hr {
+  margin: 8px 0 !important;
+  border-color: var(--sq-border) !important;
+}
+/* サイドバー内のロゴエリア */
+.mosh-sidebar-brand {
+  padding: 14px 18px 20px;
+  border-bottom: 1px solid var(--sq-border);
+  margin-bottom: 10px;
+}
+.mosh-sidebar-logo {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--sq-text);
+  letter-spacing: 1.5px;
+  line-height: 1;
+}
+.mosh-sidebar-sub {
+  font-size: 10px;
+  color: var(--sq-text-muted);
+  margin-top: 4px;
+  letter-spacing: 1.5px;
+  text-transform: lowercase;
+}
+/* ユーザー情報エリア */
+.mosh-sidebar-user {
+  padding: 8px 18px 4px;
+}
+.mosh-sidebar-username {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sq-text);
+}
+.mosh-sidebar-rolemeta {
+  font-size: 11px;
+  color: var(--sq-text-muted);
+  margin-top: 2px;
+}
+/* サイドバー内 radio をメニュー風に */
+section[data-testid="stSidebar"] [data-testid="stRadio"] > div {
+  flex-direction: column !important;
+  gap: 2px !important;
+  padding: 0 8px !important;
+}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label {
+  width: 100% !important;
+  padding: 9px 12px !important;
+  border-radius: var(--sq-radius) !important;
+  cursor: pointer;
+  font-size: 14px !important;
+  color: var(--sq-text-secondary) !important;
+  background: transparent !important;
+  border: none !important;
+  transition: all 0.12s ease;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
+  background: var(--sq-bg-hover) !important;
+  color: var(--sq-text) !important;
+}
+/* radio ○ボタンを非表示 */
+section[data-testid="stSidebar"] [data-testid="stRadio"] label > div:first-child {
+  display: none !important;
+}
+/* 選択中のラベル */
+section[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
+  background: var(--sq-primary-bg) !important;
+  color: var(--sq-primary) !important;
+  font-weight: 600 !important;
+}
+/* サイドバー内のボタン（ログアウト用） */
+section[data-testid="stSidebar"] .stButton > button {
+  margin: 0 8px !important;
+  width: calc(100% - 16px) !important;
+  background: transparent !important;
+  color: var(--sq-text-secondary) !important;
+  border: 1px solid var(--sq-border) !important;
+  font-size: 13px !important;
+}
+section[data-testid="stSidebar"] .stButton > button:hover {
+  background: var(--sq-bg-hover) !important;
+  color: var(--sq-danger) !important;
+  border-color: var(--sq-danger) !important;
+}
+/* 旧:メインタブ用 CSS は不要になったが、念のため残す（他の st.tabs に効く） */
+
 /* ─── タブを左サイドバー化（PC・769px以上）─── */
 @media (min-width: 769px) {
   /* 最上位の tab-list のみサイドバー化（ネストには適用しない） */

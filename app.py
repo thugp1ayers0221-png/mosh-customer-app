@@ -70,10 +70,10 @@ except Exception:
 # ページ設定
 # ─────────────────────────────────────────
 st.set_page_config(
-    page_title="MOSH 顧客管理",
+    page_title="MOSH",
     page_icon="🫧",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 # DBスキーマの自動マイグレーション（起動時に必ず実行・エラーは無視）
@@ -2626,6 +2626,67 @@ def show_operations():
             st.info("💡 画像生成にはGoogle AI APIキーの設定が必要です")
 
 # ─────────────────────────────────────────
+# ホームダッシュボード（Square風ホーム）
+# ─────────────────────────────────────────
+def _render_home_dashboard(user: dict):
+    """Square風ホーム画面：挨拶 + クイックメトリクス + クイックリンク"""
+    shift_ui._inject_mobile_css()
+
+    role_label = {"owner":"オーナー","payroll_admin":"経営陣","manager":"店長","staff":"スタッフ"}.get(user["role"],"")
+    st.markdown(f"## こんにちは、{user['username']} さん")
+    st.caption(f"{role_label}{('・' + user['store']) if user.get('store') else ''}")
+
+    role = user["role"]
+
+    # ── 経営陣・店長向け: 今日のメトリクス ──
+    if role in ("owner", "payroll_admin", "manager"):
+        try:
+            today_str = datetime.now().strftime("%Y-%m")
+            all_staffs = shift_db.get_all_staff(active_only=True, for_shift_only=True)
+            staff_count = len(all_staffs)
+            confirmed_shifts = len(shift_db.get_shifts_by_month(today_str, status="confirmed"))
+            draft_shifts = len(shift_db.get_shifts_by_month(today_str, status="draft"))
+            # 現在出勤中スタッフ数
+            with shift_db.get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT COUNT(*) AS n FROM time_logs WHERE clock_out IS NULL")
+                    open_clocks = cur.fetchone()["n"]
+        except Exception:
+            staff_count = confirmed_shifts = draft_shifts = open_clocks = 0
+
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("🟢 現在 出勤中", f"{open_clocks} 名")
+        with c2:
+            st.metric("👥 アクティブスタッフ", f"{staff_count} 名")
+        with c3:
+            st.metric("📌 今月の確定シフト", f"{confirmed_shifts} 件")
+        with c4:
+            st.metric("📝 今月の下書き", f"{draft_shifts} 件")
+
+    st.markdown("---")
+    st.markdown("### よく使う機能")
+
+    # ── クイックリンク ──
+    quick_buttons = [
+        ("⏱  打刻", "⏱ 打刻", "出退勤を記録"),
+        ("🗓  マイシフト", "🗓 マイシフト", "自分のシフトを確認"),
+        ("📆  店舗シフト", "📆 店舗シフト", "店舗の確定シフトを見る"),
+    ]
+    if role in ("owner", "payroll_admin", "manager"):
+        quick_buttons.append(("📅  シフト作成", "📅 シフト作成", "シフトを組む"))
+    if role in ("owner", "payroll_admin"):
+        quick_buttons.append(("💰  給与計算", "💰 給与計算", "月次集計・CSV出力"))
+
+    cols = st.columns(min(len(quick_buttons), 3))
+    for i, (label, target_page, desc) in enumerate(quick_buttons):
+        with cols[i % 3]:
+            if st.button(f"{label}\n{desc}", use_container_width=True, key=f"quick_{i}"):
+                st.session_state.main_nav = target_page
+                st.rerun()
+
+
+# ─────────────────────────────────────────
 # シフト管理セクション
 # ─────────────────────────────────────────
 def _render_shift_section(user: dict):
@@ -2774,38 +2835,124 @@ if _invite_token and not st.session_state.user:
 elif not st.session_state.user:
     show_login()
 else:
-    show_header()
-
     if st.session_state.page == "detail":
         show_detail()
     else:
         user = st.session_state.user
+        role = user["role"]
+        role_label = {"owner":"オーナー","payroll_admin":"経営陣","manager":"店長","staff":"スタッフ","executive":"経営陣"}.get(role,"")
+        store_label = user.get("store") or ""
 
-        # 権限ベースのタブ構成
-        if user["role"] == "owner":
-            tab_home, tab_dash, tab_ops, tab_shift, tab_users = st.tabs(
-                ["👥 顧客一覧", "📊 ダッシュボード", "📢 今日の営業", "📅 シフト管理", "⚙️ ユーザー管理"]
-            )
-        elif user["role"] in ("payroll_admin", "manager"):
-            tab_home, tab_dash, tab_ops, tab_shift = st.tabs(
-                ["👥 顧客一覧", "📊 ダッシュボード", "📢 今日の営業", "📅 シフト管理"]
-            )
-            tab_users = None
-        else:
-            # 一般スタッフは顧客系を見せず、シフト管理のみ
-            tab_shift, tab_home, tab_dash, tab_ops = st.tabs(
-                ["📅 シフト管理", "👥 顧客一覧", "📊 ダッシュボード", "📢 今日の営業"]
-            )
-            tab_users = None
+        # ─── サイドバー（Square風ナビゲーション）───
+        with st.sidebar:
+            st.markdown("""
+<div class="mosh-sidebar-brand">
+    <div class="mosh-sidebar-logo">MOSH</div>
+    <div class="mosh-sidebar-sub">shisha &amp; sweets</div>
+</div>
+""", unsafe_allow_html=True)
 
-        with tab_home:
+            # 権限別ナビメニュー
+            pages_by_role = {
+                "owner": [
+                    "🏠 ホーム",
+                    "🗓 マイシフト",
+                    "📆 店舗シフト",
+                    "⏱ 打刻",
+                    "📝 シフト希望",
+                    "📅 シフト作成",
+                    "💰 給与計算",
+                    "👥 スタッフ管理",
+                    "🏪 店舗マスター",
+                    "📦 初期セットアップ",
+                    "👤 顧客一覧",
+                    "📊 ダッシュボード",
+                    "📢 今日の営業",
+                    "⚙️ ユーザー管理",
+                ],
+                "payroll_admin": [
+                    "🏠 ホーム",
+                    "🗓 マイシフト",
+                    "📆 店舗シフト",
+                    "⏱ 打刻",
+                    "📝 シフト希望",
+                    "📅 シフト作成",
+                    "💰 給与計算",
+                    "👥 スタッフ管理",
+                    "👤 顧客一覧",
+                    "📊 ダッシュボード",
+                    "📢 今日の営業",
+                ],
+                "manager": [
+                    "🏠 ホーム",
+                    "🗓 マイシフト",
+                    "📆 店舗シフト",
+                    "⏱ 打刻",
+                    "📝 シフト希望",
+                    "📅 シフト作成",
+                    "👤 顧客一覧",
+                    "📊 ダッシュボード",
+                    "📢 今日の営業",
+                ],
+                "staff": [
+                    "🏠 ホーム",
+                    "🗓 マイシフト",
+                    "📆 店舗シフト",
+                    "⏱ 打刻",
+                    "📝 シフト希望",
+                ],
+            }
+            pages = pages_by_role.get(role, pages_by_role["staff"])
+            selected_page = st.radio("メニュー", pages, label_visibility="collapsed", key="main_nav")
+
+            st.markdown("---")
+            st.markdown(f"""
+<div class="mosh-sidebar-user">
+    <div class="mosh-sidebar-username">{user['username']}</div>
+    <div class="mosh-sidebar-rolemeta">{role_label}{('・' + store_label) if store_label else ''}</div>
+</div>
+""", unsafe_allow_html=True)
+            if st.button("ログアウト", use_container_width=True, key="sidebar_logout_btn"):
+                if st.session_state.get("login_token"):
+                    try:
+                        db.delete_session_token(st.session_state.login_token)
+                    except Exception:
+                        pass
+                st.session_state.user = None
+                st.session_state.login_token = None
+                try:
+                    clear_auth_cookie()
+                except Exception:
+                    pass
+                st.query_params.clear()
+                st.rerun()
+
+        # ─── メインエリア ───
+        if selected_page == "🏠 ホーム":
+            _render_home_dashboard(user)
+        elif selected_page == "🗓 マイシフト":
+            shift_ui.render_my_shift_tab(user)
+        elif selected_page == "📆 店舗シフト":
+            shift_ui.render_confirmed_shifts_tab(user)
+        elif selected_page == "⏱ 打刻":
+            shift_ui.render_timecard_tab(user)
+        elif selected_page == "📝 シフト希望":
+            shift_ui.render_shift_request_tab(user)
+        elif selected_page == "📅 シフト作成":
+            shift_ui.render_shift_create_tab(user)
+        elif selected_page == "💰 給与計算":
+            shift_ui.render_payroll_tab(user)
+        elif selected_page == "👥 スタッフ管理":
+            shift_ui.render_staff_admin_tab(user)
+        elif selected_page == "🏪 店舗マスター":
+            shift_ui.render_store_admin_tab(user)
+        elif selected_page == "📦 初期セットアップ":
+            shift_ui.render_setup_tab(user)
+        elif selected_page == "👤 顧客一覧":
             show_home()
-        with tab_dash:
+        elif selected_page == "📊 ダッシュボード":
             show_dashboard()
-        with tab_ops:
+        elif selected_page == "📢 今日の営業":
             show_operations()
-        with tab_shift:
-            _render_shift_section(user)
-        if tab_users is not None:
-            with tab_users:
-                show_user_management()
+        elif selected_page == "⚙️ ユーザー管理":
+            show_user_management()
