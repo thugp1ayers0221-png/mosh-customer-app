@@ -105,9 +105,26 @@ section[data-testid="stMain"] .block-container {
 section[data-testid="stSidebar"] {
   background: var(--sq-bg) !important;
   border-right: 1px solid var(--sq-border) !important;
-  width: 250px !important;
-  min-width: 250px !important;
 }
+/* PC: サイドバーは常時250px、閉じるボタンを非表示にして誤操作防止 */
+@media (min-width: 769px) {
+  section[data-testid="stSidebar"] {
+    width: 250px !important;
+    min-width: 250px !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+  /* 閉じる矢印・トグルボタンを非表示（複数バージョン対応） */
+  button[data-testid="stSidebarCollapseButton"],
+  button[data-testid="baseButton-headerNoPadding"],
+  button[kind="headerNoPadding"],
+  [data-testid="collapsedControl"],
+  button[aria-label="Close sidebar"],
+  button[aria-label="Hide sidebar"] {
+    display: none !important;
+  }
+}
+/* スマホでは Streamlit のハンバーガー自動制御に任せる */
 section[data-testid="stSidebar"] > div:first-child {
   padding-top: 8px !important;
   background: var(--sq-bg) !important;
