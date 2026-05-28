@@ -54,124 +54,349 @@ def _csv_download(df: pd.DataFrame, filename: str, label: str = "📥 CSV出力"
 
 
 def _inject_mobile_css():
-    """スタッフ向け画面のスマホファーストCSS（1セッション1回のみ注入）"""
+    """Square風デザインシステム CSS（1セッション1回のみ注入）"""
     if st.session_state.get("_mobile_css_injected"):
         return
     st.session_state["_mobile_css_injected"] = True
     st.markdown("""
 <style>
-/* ─── スタッフ情報ヘッダー（マイシフト） ─── */
-.mosh-staff-header {
-  background: linear-gradient(135deg, #5BA4C9 0%, #4A93B8 100%);
-  color: #fff;
-  padding: 18px 20px;
-  border-radius: 14px;
-  margin: 8px 0 16px;
-  box-shadow: 0 2px 8px rgba(91,164,201,0.25);
-}
-.mosh-staff-name { font-size: 22px; font-weight: 700; line-height: 1.3; }
-.mosh-staff-meta { font-size: 14px; opacity: 0.92; margin-top: 6px; }
+/* ═══════════════════════════════════════════
+   MOSH Shift Manager - Square風デザインシステム
+   ═══════════════════════════════════════════ */
 
-/* ─── シフトカード（マイシフトタイムライン） ─── */
-.mosh-shift-card {
-  background: #fff;
-  border: 1px solid #E5E1D6;
-  border-left: 5px solid #5BA4C9;
-  border-radius: 12px;
-  padding: 16px 18px;
-  margin: 10px 0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+:root {
+  --sq-primary:        #006AFF;
+  --sq-primary-hover:  #0058D4;
+  --sq-primary-bg:     rgba(0,106,255,0.08);
+  --sq-text:           #1A1F36;
+  --sq-text-secondary: #4F566B;
+  --sq-text-muted:     #8792A2;
+  --sq-bg:             #FFFFFF;
+  --sq-bg-subtle:      #F7F8FA;
+  --sq-bg-hover:       #F0F2F5;
+  --sq-border:         #E3E8EE;
+  --sq-border-strong:  #C1C9D2;
+  --sq-success:        #1FBA63;
+  --sq-success-bg:     rgba(31,186,99,0.1);
+  --sq-warning:        #F5A623;
+  --sq-warning-bg:     rgba(245,166,35,0.1);
+  --sq-danger:         #E25555;
+  --sq-danger-bg:      rgba(226,85,85,0.1);
+  --sq-shadow-sm:      0 1px 2px rgba(26,31,54,0.04), 0 1px 3px rgba(26,31,54,0.04);
+  --sq-shadow:         0 1px 3px rgba(26,31,54,0.06), 0 4px 12px rgba(26,31,54,0.04);
+  --sq-shadow-lg:      0 4px 12px rgba(26,31,54,0.08), 0 16px 32px rgba(26,31,54,0.06);
+  --sq-radius-sm:      6px;
+  --sq-radius:         8px;
+  --sq-radius-lg:      12px;
 }
-.mosh-shift-date { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
-.mosh-shift-store { font-size: 15px; color: #6B4226; margin-bottom: 2px; }
-.mosh-shift-time { font-size: 17px; font-weight: 600; color: #2D1F0F; margin: 6px 0; letter-spacing: 0.5px; }
-.mosh-shift-hours { font-size: 14px; color: #555; }
-.mosh-shift-hours strong { font-size: 16px; color: #2D1F0F; }
-.mosh-shift-sub { font-size: 12px; color: #999; margin-left: 4px; }
+
+/* ─── 全体フォント & 背景 ─── */
+html, body, [class*="css"], .stApp {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif !important;
+  color: var(--sq-text);
+}
+.stApp { background: var(--sq-bg-subtle); }
+section[data-testid="stMain"] .block-container {
+  padding-top: 1rem;
+  max-width: 100% !important;
+}
+
+/* ─── タブを左サイドバー化（PC・769px以上）─── */
+@media (min-width: 769px) {
+  /* 最上位の tab-list のみサイドバー化（ネストには適用しない） */
+  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] {
+    flex-direction: column !important;
+    width: 220px !important;
+    min-width: 220px !important;
+    align-self: flex-start;
+    background: var(--sq-bg);
+    border-right: 1px solid var(--sq-border);
+    border-radius: var(--sq-radius);
+    padding: 12px 8px !important;
+    gap: 2px !important;
+    box-shadow: var(--sq-shadow-sm);
+    position: sticky;
+    top: 1rem;
+  }
+  div[data-testid="stTabs"] > div {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 20px !important;
+    align-items: flex-start !important;
+  }
+  div[data-testid="stTabs"] > div > div[data-baseweb="tab-panel"] {
+    flex: 1 !important;
+    min-width: 0;
+    padding: 0 !important;
+  }
+  /* タブボタンを縦リストの行に */
+  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] button[role="tab"] {
+    width: 100% !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    padding: 10px 14px !important;
+    border-radius: var(--sq-radius) !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: var(--sq-text-secondary) !important;
+    background: transparent !important;
+    border: none !important;
+    transition: all 0.15s ease;
+  }
+  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] button[role="tab"]:hover {
+    background: var(--sq-bg-hover) !important;
+    color: var(--sq-text) !important;
+  }
+  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] button[role="tab"][aria-selected="true"] {
+    background: var(--sq-primary-bg) !important;
+    color: var(--sq-primary) !important;
+    font-weight: 600 !important;
+  }
+  /* タブ下のラインを消す */
+  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] div[data-baseweb="tab-highlight"],
+  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] div[data-baseweb="tab-border"] {
+    display: none !important;
+  }
+  /* ネスト（サブタブ）は横並びを維持 */
+  div[data-testid="stTabs"] div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] {
+    flex-direction: row !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    position: static;
+    padding: 0 !important;
+  }
+  div[data-testid="stTabs"] div[data-testid="stTabs"] > div {
+    flex-direction: column !important;
+  }
+}
+
+/* ─── ボタン Square風 ─── */
+.stButton > button {
+  border-radius: var(--sq-radius) !important;
+  font-weight: 500 !important;
+  padding: 8px 16px !important;
+  transition: all 0.15s ease;
+  border: 1px solid var(--sq-border-strong);
+  box-shadow: var(--sq-shadow-sm);
+}
+.stButton > button:hover {
+  background: var(--sq-bg-hover);
+  border-color: var(--sq-text-secondary);
+}
+.stButton > button[kind="primary"] {
+  background: var(--sq-primary) !important;
+  color: white !important;
+  border: 1px solid var(--sq-primary) !important;
+}
+.stButton > button[kind="primary"]:hover {
+  background: var(--sq-primary-hover) !important;
+  border-color: var(--sq-primary-hover) !important;
+}
+
+/* ─── 打刻専用の巨大ボタン ─── */
+button[data-clock-button="true"], .stButton button[kind="primary"][data-testid*="clock"] {
+  min-height: 68px !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  border-radius: var(--sq-radius-lg) !important;
+  letter-spacing: 2px;
+}
+
+/* ─── selectbox / input ─── */
+.stSelectbox label, .stRadio label, .stTextInput label, .stNumberInput label {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--sq-text-secondary) !important;
+}
+.stSelectbox > div > div, .stTextInput > div > div > input, .stNumberInput > div > div > input {
+  min-height: 44px !important;
+  border-radius: var(--sq-radius) !important;
+  font-size: 15px !important;
+  border: 1px solid var(--sq-border) !important;
+}
+.stSelectbox > div > div:focus-within, .stTextInput > div > div:focus-within {
+  border-color: var(--sq-primary) !important;
+  box-shadow: 0 0 0 3px var(--sq-primary-bg) !important;
+}
+
+/* ─── DataFrame / data_editor ─── */
+[data-testid="stDataFrame"], [data-testid="stDataEditor"] {
+  border-radius: var(--sq-radius) !important;
+  border: 1px solid var(--sq-border) !important;
+  box-shadow: var(--sq-shadow-sm);
+}
+
+/* ─── Metric ─── */
+[data-testid="stMetric"] {
+  background: var(--sq-bg);
+  padding: 16px 20px;
+  border-radius: var(--sq-radius);
+  border: 1px solid var(--sq-border);
+  box-shadow: var(--sq-shadow-sm);
+}
+[data-testid="stMetricLabel"] {
+  font-size: 13px !important;
+  color: var(--sq-text-secondary) !important;
+  font-weight: 500;
+}
+[data-testid="stMetricValue"] {
+  font-size: 28px !important;
+  font-weight: 600 !important;
+  color: var(--sq-text) !important;
+}
+
+/* ─── Info / Warning / Success / Error ボックス ─── */
+.stAlert {
+  border-radius: var(--sq-radius) !important;
+  border: 1px solid var(--sq-border) !important;
+  padding: 12px 16px !important;
+}
+
+/* ═══════════════════════════════════════════
+   MOSHコンポーネント
+   ═══════════════════════════════════════════ */
+
+/* ─── スタッフ情報ヘッダー ─── */
+.mosh-staff-header {
+  background: var(--sq-bg);
+  color: var(--sq-text);
+  padding: 20px 24px;
+  border-radius: var(--sq-radius-lg);
+  margin: 0 0 20px;
+  border: 1px solid var(--sq-border);
+  box-shadow: var(--sq-shadow-sm);
+}
+.mosh-staff-name { font-size: 24px; font-weight: 600; line-height: 1.3; color: var(--sq-text); }
+.mosh-staff-meta { font-size: 14px; color: var(--sq-text-secondary); margin-top: 6px; }
+
+/* ─── シフトカード ─── */
+.mosh-shift-card {
+  background: var(--sq-bg);
+  border: 1px solid var(--sq-border);
+  border-radius: var(--sq-radius-lg);
+  padding: 18px 20px;
+  margin: 10px 0;
+  box-shadow: var(--sq-shadow-sm);
+  transition: all 0.15s ease;
+}
+.mosh-shift-card:hover {
+  border-color: var(--sq-border-strong);
+  box-shadow: var(--sq-shadow);
+}
+.mosh-shift-date { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.mosh-shift-store { font-size: 14px; color: var(--sq-text-secondary); margin-bottom: 4px; }
+.mosh-shift-time {
+  font-size: 18px; font-weight: 600; color: var(--sq-text); margin: 8px 0;
+  font-variant-numeric: tabular-nums; letter-spacing: 0.5px;
+}
+.mosh-shift-hours { font-size: 14px; color: var(--sq-text-secondary); }
+.mosh-shift-hours strong { font-size: 16px; color: var(--sq-text); font-weight: 600; }
+.mosh-shift-sub { font-size: 12px; color: var(--sq-text-muted); margin-left: 6px; }
 
 /* ─── 打刻カード ─── */
 .mosh-clock-card {
-  background: #fff;
-  border-radius: 16px;
-  padding: 22px 20px;
-  margin: 12px 0 18px;
+  background: var(--sq-bg);
+  border-radius: var(--sq-radius-lg);
+  padding: 28px 24px;
+  margin: 12px 0 20px;
   text-align: center;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+  border: 1px solid var(--sq-border);
+  box-shadow: var(--sq-shadow);
 }
 .clock-status-active {
-  background: linear-gradient(135deg, #5B8F5F 0%, #4A7A4E 100%);
-  color: #fff;
+  background: linear-gradient(135deg, #006AFF 0%, #0058D4 100%);
+  color: white;
+  border-color: transparent;
 }
-.clock-status-idle {
-  background: #F5EFE0;
-  color: #2D1F0F;
+.clock-status-active .mosh-clock-staff,
+.clock-status-active .mosh-clock-store,
+.clock-status-active .mosh-clock-now,
+.clock-status-active .mosh-clock-status,
+.clock-status-active .mosh-clock-elapsed { color: white !important; }
+.mosh-clock-staff { font-size: 20px; font-weight: 600; margin-bottom: 6px; color: var(--sq-text); }
+.mosh-clock-store { font-size: 14px; color: var(--sq-text-secondary); margin-bottom: 12px; }
+.mosh-clock-now {
+  font-size: 36px; font-weight: 600; letter-spacing: 1px; margin: 12px 0;
+  font-variant-numeric: tabular-nums; color: var(--sq-text);
 }
-.mosh-clock-staff { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
-.mosh-clock-store { font-size: 15px; opacity: 0.9; margin-bottom: 10px; }
-.mosh-clock-now { font-size: 28px; font-weight: 700; letter-spacing: 1px; margin: 10px 0; font-variant-numeric: tabular-nums; }
-.mosh-clock-status { font-size: 18px; font-weight: 600; margin: 10px 0; }
-.mosh-clock-elapsed { font-size: 14px; margin-top: 12px; line-height: 1.7; }
-.mosh-clock-elapsed-h { font-size: 22px; font-weight: 700; }
+.mosh-clock-status { font-size: 18px; font-weight: 600; margin: 12px 0; color: var(--sq-text); }
+.mosh-clock-elapsed { font-size: 14px; margin-top: 12px; line-height: 1.7; color: var(--sq-text-secondary); }
+.mosh-clock-elapsed-h { font-size: 24px; font-weight: 700; }
 
 /* ─── 店舗シフト確定版カード ─── */
 .mosh-day-card {
-  background: #fff;
-  border: 1px solid #E5E1D6;
-  border-radius: 12px;
-  padding: 14px 16px;
+  background: var(--sq-bg);
+  border: 1px solid var(--sq-border);
+  border-radius: var(--sq-radius-lg);
+  padding: 16px 20px;
   margin: 10px 0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  box-shadow: var(--sq-shadow-sm);
 }
 .mosh-day-header {
-  font-size: 17px;
-  font-weight: 700;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #EFEAD8;
-  padding-bottom: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--sq-border);
+  padding-bottom: 8px;
 }
 .mosh-staff-row {
-  font-size: 15px;
-  padding: 6px 8px;
+  font-size: 14px;
+  padding: 8px 12px;
   margin: 4px 0;
-  border-radius: 6px;
-  background: #FAFAF7;
+  border-radius: var(--sq-radius-sm);
+  background: var(--sq-bg-subtle);
+  color: var(--sq-text);
 }
 
 /* ─── 打刻履歴カード ─── */
 .mosh-log-card {
-  background: #FAFAF7;
-  border-radius: 10px;
+  background: var(--sq-bg-subtle);
+  border-radius: var(--sq-radius);
   padding: 12px 14px;
   margin: 6px 0;
-  border-left: 3px solid #A8D8EA;
+  border: 1px solid var(--sq-border);
 }
-.mosh-log-date { font-size: 14px; font-weight: 700; color: #2D1F0F; }
-.mosh-log-store { font-size: 13px; color: #6B4226; margin: 2px 0; }
-.mosh-log-time { font-size: 13px; color: #555; font-variant-numeric: tabular-nums; }
+.mosh-log-date { font-size: 14px; font-weight: 600; color: var(--sq-text); }
+.mosh-log-store { font-size: 13px; color: var(--sq-text-secondary); margin: 2px 0; }
+.mosh-log-time { font-size: 13px; color: var(--sq-text-secondary); font-variant-numeric: tabular-nums; }
 
-/* ─── スマホ向けボタン大型化（打刻専用にtype=primary想定） ─── */
-.stButton button[kind="primary"] {
-  min-height: 60px !important;
-  font-size: 20px !important;
-  font-weight: 700 !important;
-  border-radius: 14px !important;
-  letter-spacing: 2px;
-}
-
-/* ─── selectbox / radio をタップしやすく ─── */
-.stSelectbox label, .stRadio label { font-size: 16px !important; }
-.stSelectbox > div > div { min-height: 48px !important; font-size: 16px !important; }
-
-/* ─── スマホ表示（768px以下）の追加調整 ─── */
+/* ─── スマホ（768px以下）の調整 ─── */
 @media (max-width: 768px) {
-  .mosh-staff-header { padding: 14px 16px; border-radius: 12px; }
-  .mosh-staff-name { font-size: 19px; }
-  .mosh-clock-card { padding: 18px 16px; }
-  .mosh-clock-now { font-size: 32px; }
-  .mosh-clock-elapsed-h { font-size: 26px; }
-  .stButton button[kind="primary"] { min-height: 68px !important; font-size: 22px !important; }
+  .mosh-staff-header { padding: 16px 18px; }
+  .mosh-staff-name { font-size: 20px; }
+  .mosh-clock-card { padding: 22px 18px; }
+  .mosh-clock-now { font-size: 38px; }
+  .mosh-clock-elapsed-h { font-size: 28px; }
+  .stButton > button[kind="primary"] { min-height: 56px !important; font-size: 17px !important; }
+  /* スマホではタブを上部に横スクロール表示（Streamlitデフォルト挙動） */
+  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
+
+/* ─── PWA対応: ホーム画面追加時のフルスクリーン挙動 ─── */
+@media (display-mode: standalone) {
+  .stApp { padding-top: env(safe-area-inset-top); }
+  header[data-testid="stHeader"] { display: none !important; }
+}
+
+/* ─── Streamlit デフォルト要素を控えめに（アプリ感UP） ─── */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+.stDeployButton { display: none !important; }
 </style>
+
+<!-- ═══ PWA メタタグ（ホーム画面追加・フルスクリーン化） ═══ -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MOSH勤怠">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#006AFF">
 """, unsafe_allow_html=True)
 
 

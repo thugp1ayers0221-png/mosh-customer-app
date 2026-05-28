@@ -85,6 +85,9 @@ if "db_migrated" not in st.session_state:
     except Exception:
         pass
 
+# Square風デザインシステムをアプリ全体に適用
+shift_ui._inject_mobile_css()
+
 # ─── キャッシュ付きDB取得 ───
 @st.cache_data(ttl=600, show_spinner=False)
 def cached_get_customers(store=None, period=None, period_start=None, period_end=None, rank=None, search=None, limit=100):
