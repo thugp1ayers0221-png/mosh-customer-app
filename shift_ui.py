@@ -49,6 +49,7 @@ def _csv_download(df: pd.DataFrame, filename: str, label: str = "📥 CSV出力"
         data=buf.getvalue(),
         file_name=filename,
         mime="text/csv",
+        key=f"csv_dl_{filename}",
     )
 
 
@@ -656,13 +657,18 @@ def _payroll_unlocked() -> bool:
     return True
 
 
-def require_payroll_unlock() -> bool:
-    """賃金関連UIの前に呼ぶ。アンロック済みなら True、未アンロックなら入力UIを描画して False"""
+def require_payroll_unlock(context: str = "default") -> bool:
+    """賃金関連UIの前に呼ぶ。アンロック済みなら True、未アンロックなら入力UIを描画して False
+
+    Args:
+        context: 呼び出し元タブを識別する文字列。同じkeyの widget 重複エラーを避けるため
+                 各呼び出し元で異なる値を渡すこと（例: "payroll", "staff_admin", "store_admin"）
+    """
     if _payroll_unlocked():
         return True
     st.warning("🔒 この画面は経営陣パスワードで保護されています")
-    pw = st.text_input("経営陣パスワード", type="password", key="payroll_pw_input")
-    if st.button("🔓 ロック解除"):
+    pw = st.text_input("経営陣パスワード", type="password", key=f"payroll_pw_input_{context}")
+    if st.button("🔓 ロック解除", key=f"payroll_unlock_btn_{context}"):
         if shift_db.verify_payroll_password(pw):
             st.session_state[PAYROLL_UNLOCK_KEY] = datetime.now()
             st.success("✅ ロック解除しました（30分間有効）")
@@ -679,7 +685,7 @@ def render_payroll_tab(user: dict):
         st.error("この画面は経営陣（owner / payroll_admin）専用です")
         return
 
-    if not require_payroll_unlock():
+    if not require_payroll_unlock("payroll"):
         return
 
     # 月選択
@@ -802,7 +808,7 @@ def render_staff_admin_tab(user: dict):
     if not _is_payroll_admin(user):
         st.error("この画面は経営陣（owner / payroll_admin）専用です")
         return
-    if not require_payroll_unlock():
+    if not require_payroll_unlock("staff_admin"):
         return
 
     staffs = shift_db.get_all_staff(active_only=True)
@@ -879,7 +885,7 @@ def render_store_admin_tab(user: dict):
     if user.get("role") != "owner":
         st.error("この画面は owner 専用です")
         return
-    if not require_payroll_unlock():
+    if not require_payroll_unlock("store_admin"):
         return
 
     st.markdown("### 🏪 店舗マスター")
