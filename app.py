@@ -2949,10 +2949,14 @@ else:
         elif selected_page == "📦 初期セットアップ":
             shift_ui.render_setup_tab(user)
         elif selected_page == "👤 顧客一覧":
+            shift_ui._inject_mobile_css()
             show_home()
         elif selected_page == "📊 ダッシュボード":
+            shift_ui._inject_mobile_css()
             show_dashboard()
         elif selected_page == "📢 今日の営業":
+            shift_ui._inject_mobile_css()
             show_operations()
         elif selected_page == "⚙️ ユーザー管理":
+            shift_ui._inject_mobile_css()
             show_user_management()

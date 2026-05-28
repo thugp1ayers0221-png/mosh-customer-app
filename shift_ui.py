@@ -54,10 +54,7 @@ def _csv_download(df: pd.DataFrame, filename: str, label: str = "📥 CSV出力"
 
 
 def _inject_mobile_css():
-    """Square風デザインシステム CSS（1セッション1回のみ注入）"""
-    if st.session_state.get("_mobile_css_injected"):
-        return
-    st.session_state["_mobile_css_injected"] = True
+    """Square風デザインシステム CSS（毎回注入してページ遷移時のスタイル消失を防止）"""
     st.markdown("""
 <style>
 /* ═══════════════════════════════════════════
