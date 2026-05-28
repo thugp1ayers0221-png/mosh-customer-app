@@ -20,6 +20,7 @@ import streamlit as st
 import pandas as pd
 
 import shift_db
+import mosh_db
 import payroll_logic as pl
 
 
@@ -1732,6 +1733,18 @@ def render_payroll_tab(user: dict):
 # 6. スタッフマスター管理タブ（owner / payroll_admin・要セカンドPW）
 # ─────────────────────────────────────────
 
+def _safe_int(v, default=0):
+    """None・空文字・非数値を安全にintに変換"""
+    if v is None or (isinstance(v, str) and v.strip() == ""):
+        return default
+    try:
+        if isinstance(v, float) and (v != v):  # NaN
+            return default
+        return int(v)
+    except (ValueError, TypeError):
+        return default
+
+
 def render_staff_admin_tab(user: dict):
     st.markdown("### スタッフマスター")
 
@@ -1741,9 +1754,19 @@ def render_staff_admin_tab(user: dict):
     if not require_payroll_unlock("staff_admin"):
         return
 
-    staffs = shift_db.get_all_staff(active_only=True)
+    # フィルタ
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        show_excluded = st.checkbox("経営者・FCオーナーも表示", value=False, key="staff_show_excluded")
+    with col_f2:
+        show_inactive = st.checkbox("退職者も表示", value=False, key="staff_show_inactive")
+
+    staffs = shift_db.get_all_staff(
+        active_only=not show_inactive,
+        for_payroll=not show_excluded,
+    )
     if not staffs:
-        st.info("スタッフがまだ登録されていません。`staff_seed.py` を実行してください。")
+        st.info("該当するスタッフがいません")
         return
 
     rows = []
@@ -1753,15 +1776,16 @@ def render_staff_admin_tab(user: dict):
             "本名": s["display_name"],
             "通称": s["nickname"] or "",
             "店舗": STORE_CODE_TO_NAME.get(s["primary_store"], s["primary_store"]),
-            "役職": s["position"],
-            "雇用": s["employment_type"],
-            "時給": s["hourly_wage"] or 0,
-            "月給": s["base_monthly_salary"] or 0,
-            "所定h/月": s["monthly_standard_hours"] or 176,
-            "役職給/h": s["position_allowance_per_hour"] or 0,
-            "週休日数": s["weekly_off_days"] or 2,
-            "月目標h": s["monthly_target_hours"] or 160,
-            "フレキ": s["flexible"],
+            "役職": s["position"] or "スタッフ",
+            "雇用": s["employment_type"] or "アルバイト",
+            "時給": _safe_int(s["hourly_wage"], 0),
+            "月給": _safe_int(s["base_monthly_salary"], 0),
+            "所定h/月": _safe_int(s["monthly_standard_hours"], 176),
+            "役職給/h": _safe_int(s["position_allowance_per_hour"], 0),
+            "週休日数": _safe_int(s["weekly_off_days"], 2),
+            "月目標h": _safe_int(s["monthly_target_hours"], 160),
+            "フレキ": bool(s["flexible"]),
+            "アクティブ": bool(s["active"]),
         })
     df = pd.DataFrame(rows)
     edited = st.data_editor(
@@ -1785,26 +1809,132 @@ def render_staff_admin_tab(user: dict):
     with col1:
         if st.button("変更を保存", type="primary", use_container_width=True):
             cnt = 0
+            errors = []
             for i, row in edited.iterrows():
                 orig = df.iloc[i]
                 changed = {}
-                if row["通称"] != orig["通称"]: changed["nickname"] = row["通称"]
-                if row["役職"] != orig["役職"]: changed["position"] = row["役職"]
-                if row["雇用"] != orig["雇用"]: changed["employment_type"] = row["雇用"]
-                if row["時給"] != orig["時給"]: changed["hourly_wage"] = int(row["時給"])
-                if row["月給"] != orig["月給"]: changed["base_monthly_salary"] = int(row["月給"])
-                if row["所定h/月"] != orig["所定h/月"]: changed["monthly_standard_hours"] = int(row["所定h/月"])
-                if row["役職給/h"] != orig["役職給/h"]: changed["position_allowance_per_hour"] = int(row["役職給/h"])
-                if row["週休日数"] != orig["週休日数"]: changed["weekly_off_days"] = int(row["週休日数"])
-                if row["月目標h"] != orig["月目標h"]: changed["monthly_target_hours"] = int(row["月目標h"])
-                if row["フレキ"] != orig["フレキ"]: changed["flexible"] = bool(row["フレキ"])
-                if changed:
-                    shift_db.update_staff(row["ID"], **changed)
-                    cnt += 1
+                try:
+                    if row["通称"] != orig["通称"]: changed["nickname"] = row["通称"] or ""
+                    if row["役職"] != orig["役職"]: changed["position"] = row["役職"] or "スタッフ"
+                    if row["雇用"] != orig["雇用"]: changed["employment_type"] = row["雇用"] or "アルバイト"
+                    if row["時給"] != orig["時給"]: changed["hourly_wage"] = _safe_int(row["時給"], 0)
+                    if row["月給"] != orig["月給"]: changed["base_monthly_salary"] = _safe_int(row["月給"], 0)
+                    if row["所定h/月"] != orig["所定h/月"]: changed["monthly_standard_hours"] = _safe_int(row["所定h/月"], 176)
+                    if row["役職給/h"] != orig["役職給/h"]: changed["position_allowance_per_hour"] = _safe_int(row["役職給/h"], 0)
+                    if row["週休日数"] != orig["週休日数"]: changed["weekly_off_days"] = _safe_int(row["週休日数"], 2)
+                    if row["月目標h"] != orig["月目標h"]: changed["monthly_target_hours"] = _safe_int(row["月目標h"], 160)
+                    if row["フレキ"] != orig["フレキ"]: changed["flexible"] = bool(row["フレキ"])
+                    if row["アクティブ"] != orig["アクティブ"]: changed["active"] = bool(row["アクティブ"])
+                    if changed:
+                        shift_db.update_staff(row["ID"], **changed)
+                        cnt += 1
+                except Exception as e:
+                    errors.append(f"{row['本名']}: {e}")
+            if errors:
+                for e in errors:
+                    st.error(e)
             st.success(f"{cnt}名のスタッフ情報を更新しました")
             st.rerun()
     with col2:
         _csv_download(edited, f"mosh_staff_master_{date.today().strftime('%Y-%m')}.csv")
+
+    # ── 退職処理 ──
+    st.markdown("---")
+    st.markdown("#### 退職処理")
+    st.caption("退職スタッフはアクティブ=falseにします。打刻・シフト記録は保持され、新規シフトには表示されなくなります。")
+    active_staffs = [s for s in staffs if s["active"]]
+    if active_staffs:
+        target_name = st.selectbox(
+            "退職するスタッフを選択",
+            [""] + [s["display_name"] for s in active_staffs],
+            key="deactivate_target",
+        )
+        if target_name and st.button(f"{target_name} を退職処理する", key="deactivate_btn"):
+            target = next((s for s in active_staffs if s["display_name"] == target_name), None)
+            if target:
+                shift_db.deactivate_staff(target["id"])
+                st.success(f"{target_name} を退職処理しました（アクティブ=false）")
+                st.rerun()
+
+    # 再アクティブ化（退職取消）
+    inactive_staffs = [s for s in staffs if not s["active"]]
+    if inactive_staffs:
+        st.markdown("##### 退職取消（再アクティブ化）")
+        reactivate_name = st.selectbox(
+            "再アクティブ化するスタッフ",
+            [""] + [s["display_name"] for s in inactive_staffs],
+            key="reactivate_target",
+        )
+        if reactivate_name and st.button(f"{reactivate_name} をアクティブに戻す", key="reactivate_btn"):
+            target = next((s for s in inactive_staffs if s["display_name"] == reactivate_name), None)
+            if target:
+                shift_db.update_staff(target["id"], active=True)
+                st.success(f"{reactivate_name} をアクティブに戻しました")
+                st.rerun()
+
+    # ── 新規スタッフ追加 ──
+    st.markdown("---")
+    with st.expander("新規スタッフを追加"):
+        with st.form("add_staff_form"):
+            c1, c2 = st.columns(2)
+            with c1:
+                new_display_name = st.text_input("本名（display_name）*", placeholder="例: 山田太郎")
+                new_last_name = st.text_input("姓", placeholder="例: 山田")
+                new_first_name = st.text_input("名", placeholder="例: 太郎")
+                new_nickname = st.text_input("通称", placeholder="例: タロー")
+                new_username = st.text_input("ログインID*", placeholder="例: taro_kashiwa")
+            with c2:
+                new_store = st.selectbox("主所属店舗", [c for c, _ in STORE_OPTIONS],
+                                            format_func=lambda c: STORE_CODE_TO_NAME.get(c, c))
+                new_position = st.selectbox("役職",
+                    ["スタッフ", "店長", "副店長", "店長代理（共同）", "研修生", "事務", "FCオーナー", "マネージャー"])
+                new_employment = st.selectbox("雇用形態", ["アルバイト", "社員", "業務委託"])
+                new_hourly = st.number_input("時給（アルバイト用）", min_value=0, step=10, value=0)
+                new_monthly = st.number_input("月給（社員用）", min_value=0, step=1000, value=0)
+
+            submitted = st.form_submit_button("追加", type="primary")
+            if submitted:
+                if not new_display_name.strip() or not new_username.strip():
+                    st.error("本名 と ログインID は必須です")
+                else:
+                    try:
+                        # 1. users 認証アカウント作成
+                        existing_users = mosh_db.get_all_users()
+                        if any(u["username"] == new_username.strip() for u in existing_users):
+                            st.error(f"ログインID '{new_username}' は既に使われています")
+                        else:
+                            mosh_db.add_user(
+                                username=new_username.strip(),
+                                password="MOSH4148",
+                                role="staff",
+                                store="",
+                            )
+                            # 2. staff_master 追加
+                            staff_id = shift_db.upsert_staff(
+                                display_name=new_display_name.strip(),
+                                last_name=new_last_name.strip(),
+                                first_name=new_first_name.strip(),
+                                nickname=new_nickname.strip(),
+                                short_name=(new_nickname.strip() or new_display_name.strip())[:6],
+                                primary_store=new_store,
+                                available_stores=[new_store],
+                                position=new_position,
+                                employment_type=new_employment,
+                                hourly_wage=int(new_hourly),
+                                base_monthly_salary=int(new_monthly),
+                                active=True,
+                                include_in_shift=True,
+                                include_in_payroll=(new_position not in ("代表", "共同経営", "FCオーナー")),
+                            )
+                            # 3. users.staff_id にリンク
+                            with shift_db.get_conn() as conn:
+                                with conn.cursor() as cur:
+                                    cur.execute("UPDATE users SET staff_id = %s WHERE username = %s",
+                                                (staff_id, new_username.strip()))
+                            st.success(f"✅ {new_display_name} を追加しました（初期PW: MOSH4148）")
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"追加失敗: {e}")
 
 
 # ─────────────────────────────────────────

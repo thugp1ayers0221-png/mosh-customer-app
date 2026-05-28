@@ -194,6 +194,11 @@ def migrate_shift_db():
                 cur.execute("ALTER TABLE staff_master ADD COLUMN IF NOT EXISTS include_in_shift BOOLEAN DEFAULT true")
             except Exception:
                 pass
+            # 給与計算対象フラグ（経営者・FCオーナーなど人件費管理外を除外）
+            try:
+                cur.execute("ALTER TABLE staff_master ADD COLUMN IF NOT EXISTS include_in_payroll BOOLEAN DEFAULT true")
+            except Exception:
+                pass
             # 表示順
             try:
                 cur.execute("ALTER TABLE staff_master ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 100")
@@ -252,6 +257,12 @@ def _seed_initial_data():
                 SET include_in_shift = false
                 WHERE position IN ('代表', '共同経営')
             """)
+            # 経営者・FCオーナーを自動的に給与計算対象外に
+            cur.execute("""
+                UPDATE staff_master
+                SET include_in_payroll = false
+                WHERE position IN ('代表', '共同経営', 'FCオーナー', '共同運営')
+            """)
 
             # 既存 shifts の 'planned' を 'draft' に変換
             try:
@@ -290,11 +301,12 @@ def update_store_master(code: str, **kwargs):
 # ─────────────────────────────────────────
 
 def get_all_staff(active_only: bool = True, store: Optional[str] = None,
-                    for_shift_only: bool = False) -> list:
+                    for_shift_only: bool = False, for_payroll: bool = False) -> list:
     """
     Args:
-        for_shift_only: True ならシフト管理対象（include_in_shift=true）のみ返す。
-                        経営者など店舗業務に入らないスタッフをシフト表から除外するのに使う。
+        active_only: True なら active=true のみ
+        for_shift_only: True ならシフト管理対象（include_in_shift=true）のみ返す
+        for_payroll: True なら給与計算対象（include_in_payroll=true）のみ返す
     """
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -308,10 +320,14 @@ def get_all_staff(active_only: bool = True, store: Optional[str] = None,
             if active_only:
                 sql += " AND sm.active = true"
             if for_shift_only:
-                # include_in_shift フラグ + 経営者役職（代表・共同経営・マネージャー）も除外
                 sql += """
                     AND COALESCE(sm.include_in_shift, true) = true
                     AND sm.position NOT IN ('代表', '共同経営')
+                """
+            if for_payroll:
+                sql += """
+                    AND COALESCE(sm.include_in_payroll, true) = true
+                    AND sm.position NOT IN ('代表', '共同経営', 'FCオーナー', '共同運営')
                 """
             if store:
                 sql += " AND (sm.primary_store = %s OR %s = ANY(sm.available_stores))"

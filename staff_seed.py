@@ -132,7 +132,8 @@ STAFF_DATA = [
      "position": "研修生", "employment_type": "アルバイト", "username": "mask_otaka"},
     {"display_name": "足立大河",   "last_name": "足立", "first_name": "大河",   "nickname": "大河",
      "primary_store": "otaka",
-     "position": "共同運営", "employment_type": "業務委託", "username": "adachi_otaka"},
+     "position": "FCオーナー", "employment_type": "業務委託", "username": "adachi_otaka",
+     "include_in_shift": False},
 
     # ── 西船橋店 ──
     {"display_name": "大地七海",   "last_name": "大地", "first_name": "七海",   "nickname": "ななみん",
