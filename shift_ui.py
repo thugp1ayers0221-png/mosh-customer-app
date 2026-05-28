@@ -357,6 +357,20 @@ button[data-clock-button="true"], .stButton button[kind="primary"][data-testid*=
   border: 1px solid var(--sq-border) !important;
   box-shadow: var(--sq-shadow-sm);
 }
+/* セル内のフォントサイズと余白を少し縮めて、シフト表で「[メ18:45-29]」も入る幅にする */
+[data-testid="stDataEditor"] [role="gridcell"],
+[data-testid="stDataEditor"] [role="columnheader"] {
+  font-size: 12px !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+  letter-spacing: -0.2px;
+}
+[data-testid="stDataFrame"] [role="gridcell"],
+[data-testid="stDataFrame"] [role="columnheader"] {
+  font-size: 12px !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
 
 /* ─── Metric ─── */
 [data-testid="stMetric"] {
@@ -726,10 +740,10 @@ def render_shift_create_tab(user: dict):
 
     st.caption("例: `15-24`（15時〜24時）/ `15-29`（15時〜翌5時）/ 休みは空欄・`休`・`×`・`ー`　　`[西15-22]` 形式は他店シフト（編集不可）")
 
-    # 列幅: スタッフ名は small、日付列は medium（[メ18:45-29] のような長い文字列も読める幅）
+    # 列幅: スタッフ名は small、日付列も small に戻す（CSSで文字を少し小さくして長文字列も収まるように）
     column_config = {"スタッフ": st.column_config.TextColumn(width="small", pinned="left")}
     for header in day_headers:
-        column_config[header] = st.column_config.TextColumn(width="medium")
+        column_config[header] = st.column_config.TextColumn(width="small")
 
     # 編集
     edited = st.data_editor(
