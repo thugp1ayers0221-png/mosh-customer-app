@@ -168,9 +168,19 @@ def migrate_shift_db():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_timelogs_date_staff ON time_logs(work_date, staff_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_requests_yearmonth ON shift_requests(year_month)")
 
-            # ── 既存テーブルのALTER（payroll_admin ロール対応）──
+            # ── 既存テーブルのALTER ──
             try:
                 cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS staff_id INTEGER REFERENCES staff_master(id)")
+            except Exception:
+                pass
+            # シフト管理対象フラグ（経営者などをシフト表から除外するため）
+            try:
+                cur.execute("ALTER TABLE staff_master ADD COLUMN IF NOT EXISTS include_in_shift BOOLEAN DEFAULT true")
+            except Exception:
+                pass
+            # 表示順
+            try:
+                cur.execute("ALTER TABLE staff_master ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 100")
             except Exception:
                 pass
 
@@ -236,7 +246,13 @@ def update_store_master(code: str, **kwargs):
 # スタッフマスター
 # ─────────────────────────────────────────
 
-def get_all_staff(active_only: bool = True, store: Optional[str] = None) -> list:
+def get_all_staff(active_only: bool = True, store: Optional[str] = None,
+                    for_shift_only: bool = False) -> list:
+    """
+    Args:
+        for_shift_only: True ならシフト管理対象（include_in_shift=true）のみ返す。
+                        経営者など店舗業務に入らないスタッフをシフト表から除外するのに使う。
+    """
     with get_conn() as conn:
         with conn.cursor() as cur:
             sql = """
@@ -248,10 +264,29 @@ def get_all_staff(active_only: bool = True, store: Optional[str] = None) -> list
             params = []
             if active_only:
                 sql += " AND sm.active = true"
+            if for_shift_only:
+                sql += " AND COALESCE(sm.include_in_shift, true) = true"
             if store:
                 sql += " AND (sm.primary_store = %s OR %s = ANY(sm.available_stores))"
                 params.extend([store, store])
-            sql += " ORDER BY sm.primary_store, sm.position, sm.display_name"
+            # 役職順: 店長→副店長→店長代理→マネージャー→社員→スタッフ→研修生→その他
+            sql += """
+                ORDER BY
+                    COALESCE(sm.sort_order, 100),
+                    CASE sm.position
+                        WHEN '代表' THEN 1
+                        WHEN '共同経営' THEN 2
+                        WHEN 'マネージャー' THEN 3
+                        WHEN '店長' THEN 4
+                        WHEN '副店長' THEN 5
+                        WHEN '店長代理（共同）' THEN 6
+                        WHEN '社員' THEN 7
+                        WHEN 'スタッフ' THEN 8
+                        WHEN '研修生' THEN 9
+                        ELSE 10
+                    END,
+                    sm.display_name
+            """
             cur.execute(sql, params)
             return [dict(r) for r in cur.fetchall()]
 

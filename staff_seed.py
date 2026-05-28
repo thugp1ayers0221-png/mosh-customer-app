@@ -35,12 +35,15 @@ import mosh_db
 
 STAFF_DATA = [
     # ── 経営・本部 ──
+    # 清本・田中は店舗業務に入らないため include_in_shift=False
     {"display_name": "清本勇樹",   "nickname": "清本／kii",      "primary_store": "kashiwa",
      "available_stores": ["kashiwa","masons","higashimurayama","nishifunabashi","otaka","matsudo"],
-     "position": "代表", "employment_type": "社員", "username": "kii001", "is_owner": True, "payroll_admin": True},
+     "position": "代表", "employment_type": "社員", "username": "kii001", "is_owner": True, "payroll_admin": True,
+     "include_in_shift": False},
     {"display_name": "田中たくみ", "nickname": "田中", "primary_store": "kashiwa",
      "available_stores": ["kashiwa","masons","higashimurayama","nishifunabashi","otaka","matsudo"],
-     "position": "共同経営", "employment_type": "社員", "username": "tanaka001", "payroll_admin": True},
+     "position": "共同経営", "employment_type": "社員", "username": "tanaka001", "payroll_admin": True,
+     "include_in_shift": False},
     {"display_name": "齊藤美希",   "nickname": "みき",   "primary_store": "kashiwa",
      "available_stores": ["kashiwa","masons","higashimurayama","nishifunabashi","otaka"],
      "position": "マネージャー", "employment_type": "社員", "username": "miki001", "payroll_admin": True},
@@ -178,6 +181,7 @@ def seed(log=None):
             "position": d.get("position", "スタッフ"),
             "employment_type": d.get("employment_type", "アルバイト"),
             "monthly_target_hours": d.get("monthly_target_hours", 160),
+            "include_in_shift": d.get("include_in_shift", True),
             "active": True,
         }
         staff_id = shift_db.upsert_staff(**fields)

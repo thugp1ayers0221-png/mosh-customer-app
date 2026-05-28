@@ -149,8 +149,8 @@ def render_shift_create_tab(user: dict):
     _, days_in_month = calendar.monthrange(year, month)
     days = list(range(1, days_in_month + 1))
 
-    # スタッフ取得（その店舗で勤務可能な人）
-    staffs = shift_db.get_all_staff(active_only=True, store=store_code)
+    # スタッフ取得（経営者など include_in_shift=false は除外）
+    staffs = shift_db.get_all_staff(active_only=True, store=store_code, for_shift_only=True)
     if not staffs:
         st.info("この店舗で勤務可能なスタッフがまだ登録されていません。")
         return
@@ -161,17 +161,53 @@ def render_shift_create_tab(user: dict):
     for s in shifts:
         shift_map[(s["staff_id"], s["shift_date"].day)] = s
 
-    # DataFrame作成
+    # 曜日付きヘッダー（土曜🔵・日曜🔴・祝日🟡で識別）
+    weekday_emoji = ["", "", "", "", "", "🔵", "🔴"]  # 月火水木金土日
+    weekday_label = ["月", "火", "水", "木", "金", "土", "日"]
+    try:
+        import jpholiday
+        has_jpholiday = True
+    except Exception:
+        has_jpholiday = False
+
+    day_headers = []
+    for d in days:
+        try:
+            dt = date(year, month, d)
+            wd = dt.weekday()  # 0=月, 6=日
+            prefix = weekday_emoji[wd]
+            if has_jpholiday and jpholiday.is_holiday(dt):
+                prefix = "🟡"
+            day_headers.append(f"{prefix}{d}({weekday_label[wd]})")
+        except Exception:
+            day_headers.append(str(d))
+
+    # DataFrame作成（列ヘッダーに曜日付き）
     rows = []
     for staff in staffs:
-        row = {"スタッフ": staff["display_name"], "_staff_id": staff["id"]}
-        for d in days:
+        # スタッフ名に役職プレフィックス
+        pos = staff.get("position", "")
+        if pos in ("店長",):
+            name_display = f"👑 {staff['display_name']}"
+        elif pos in ("副店長", "店長代理（共同）"):
+            name_display = f"⭐ {staff['display_name']}"
+        elif pos == "研修生":
+            name_display = f"🌱 {staff['display_name']}"
+        else:
+            name_display = staff["display_name"]
+        row = {"スタッフ": name_display, "_staff_id": staff["id"]}
+        for d, header in zip(days, day_headers):
             sh = shift_map.get((staff["id"], d))
-            row[str(d)] = _format_time_cell(sh["start_time"], sh["end_time"], sh["crosses_midnight"]) if sh else ""
+            row[header] = _format_time_cell(sh["start_time"], sh["end_time"], sh["crosses_midnight"]) if sh else ""
         rows.append(row)
     df = pd.DataFrame(rows)
 
-    st.caption(f"💡 セルに「15-24」のように時間帯を入力。休みは空欄または「休」「×」「ー」。翌日にまたぐ場合は「15-29」（→翌5時）形式")
+    st.caption("💡 例: `15-24`（15時〜24時）/ `15-29`（15時〜翌5時）/ 休みは空欄・`休`・`×`・`ー` / 👑店長 ⭐副店長・代理 🌱研修中")
+
+    # 各日付列の幅を狭く
+    column_config = {"スタッフ": st.column_config.TextColumn(width="small", pinned="left")}
+    for header in day_headers:
+        column_config[header] = st.column_config.TextColumn(width="small")
 
     # 編集
     edited = st.data_editor(
@@ -180,14 +216,17 @@ def render_shift_create_tab(user: dict):
         hide_index=True,
         key=f"shift_editor_{store_code}_{ym}",
         disabled=["スタッフ"],
-        column_config={"スタッフ": st.column_config.TextColumn(width="small")},
+        column_config=column_config,
     )
+
+    # 保存処理用に「列ヘッダー→日数」マップを作成
+    header_to_day = {h: d for d, h in zip(days, day_headers)}
 
     # 保存ボタン
     col_save, col_csv = st.columns([1, 1])
     with col_save:
         if st.button("💾 シフトを保存", type="primary", use_container_width=True):
-            _save_shift_changes(edited, df, staffs, year, month, store_code, user)
+            _save_shift_changes(edited, df, staffs, year, month, store_code, user, header_to_day)
     with col_csv:
         _csv_download(edited, f"mosh_shifts_{store_code}_{ym}.csv")
 
@@ -197,8 +236,13 @@ def render_shift_create_tab(user: dict):
 
 
 def _save_shift_changes(edited_df: pd.DataFrame, original_df: pd.DataFrame,
-                          staffs: list, year: int, month: int, store_code: str, user: dict):
-    """data_editor の差分を検出して upsert/delete"""
+                          staffs: list, year: int, month: int, store_code: str, user: dict,
+                          header_to_day: dict = None):
+    """data_editor の差分を検出して upsert/delete
+
+    header_to_day: 曜日付き列ヘッダー（"🔴1(日)"等）→ 日数(int) のマップ
+    """
+    header_to_day = header_to_day or {}
     changes = 0
     errors = []
     user_id = user.get("id")
@@ -207,13 +251,15 @@ def _save_shift_changes(edited_df: pd.DataFrame, original_df: pd.DataFrame,
         staff = staffs[idx]
         staff_id = staff["id"]
         for col in edited_df.columns:
-            if not col.isdigit():
+            if col == "スタッフ":
+                continue
+            day = header_to_day.get(col)
+            if day is None:
                 continue
             new_val = (row[col] or "").strip() if isinstance(row[col], str) else ""
             old_val = (original_df.iloc[idx][col] or "").strip() if isinstance(original_df.iloc[idx][col], str) else ""
             if new_val == old_val:
                 continue
-            day = int(col)
             try:
                 shift_date = date(year, month, day)
             except ValueError:
