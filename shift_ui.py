@@ -53,6 +53,104 @@ def _csv_download(df: pd.DataFrame, filename: str, label: str = "📥 CSV出力"
     )
 
 
+def _inject_mobile_css():
+    """スタッフ向け画面のスマホファーストCSS（1セッション1回のみ注入）"""
+    if st.session_state.get("_mobile_css_injected"):
+        return
+    st.session_state["_mobile_css_injected"] = True
+    st.markdown("""
+<style>
+/* ─── スタッフ情報ヘッダー（マイシフト） ─── */
+.mosh-staff-header {
+  background: linear-gradient(135deg, #5BA4C9 0%, #4A93B8 100%);
+  color: #fff;
+  padding: 18px 20px;
+  border-radius: 14px;
+  margin: 8px 0 16px;
+  box-shadow: 0 2px 8px rgba(91,164,201,0.25);
+}
+.mosh-staff-name { font-size: 22px; font-weight: 700; line-height: 1.3; }
+.mosh-staff-meta { font-size: 14px; opacity: 0.92; margin-top: 6px; }
+
+/* ─── シフトカード（マイシフトタイムライン） ─── */
+.mosh-shift-card {
+  background: #fff;
+  border: 1px solid #E5E1D6;
+  border-left: 5px solid #5BA4C9;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 10px 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.mosh-shift-date { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.mosh-shift-store { font-size: 15px; color: #6B4226; margin-bottom: 2px; }
+.mosh-shift-time { font-size: 17px; font-weight: 600; color: #2D1F0F; margin: 6px 0; letter-spacing: 0.5px; }
+.mosh-shift-hours { font-size: 14px; color: #555; }
+.mosh-shift-hours strong { font-size: 16px; color: #2D1F0F; }
+.mosh-shift-sub { font-size: 12px; color: #999; margin-left: 4px; }
+
+/* ─── 打刻カード ─── */
+.mosh-clock-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 22px 20px;
+  margin: 12px 0 18px;
+  text-align: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+.clock-status-active {
+  background: linear-gradient(135deg, #5B8F5F 0%, #4A7A4E 100%);
+  color: #fff;
+}
+.clock-status-idle {
+  background: #F5EFE0;
+  color: #2D1F0F;
+}
+.mosh-clock-staff { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.mosh-clock-store { font-size: 15px; opacity: 0.9; margin-bottom: 10px; }
+.mosh-clock-now { font-size: 28px; font-weight: 700; letter-spacing: 1px; margin: 10px 0; font-variant-numeric: tabular-nums; }
+.mosh-clock-status { font-size: 18px; font-weight: 600; margin: 10px 0; }
+.mosh-clock-elapsed { font-size: 14px; margin-top: 12px; line-height: 1.7; }
+.mosh-clock-elapsed-h { font-size: 22px; font-weight: 700; }
+
+/* ─── 打刻履歴カード ─── */
+.mosh-log-card {
+  background: #FAFAF7;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 6px 0;
+  border-left: 3px solid #A8D8EA;
+}
+.mosh-log-date { font-size: 14px; font-weight: 700; color: #2D1F0F; }
+.mosh-log-store { font-size: 13px; color: #6B4226; margin: 2px 0; }
+.mosh-log-time { font-size: 13px; color: #555; font-variant-numeric: tabular-nums; }
+
+/* ─── スマホ向けボタン大型化（打刻専用にtype=primary想定） ─── */
+.stButton button[kind="primary"] {
+  min-height: 60px !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  border-radius: 14px !important;
+  letter-spacing: 2px;
+}
+
+/* ─── selectbox / radio をタップしやすく ─── */
+.stSelectbox label, .stRadio label { font-size: 16px !important; }
+.stSelectbox > div > div { min-height: 48px !important; font-size: 16px !important; }
+
+/* ─── スマホ表示（768px以下）の追加調整 ─── */
+@media (max-width: 768px) {
+  .mosh-staff-header { padding: 14px 16px; border-radius: 12px; }
+  .mosh-staff-name { font-size: 19px; }
+  .mosh-clock-card { padding: 18px 16px; }
+  .mosh-clock-now { font-size: 32px; }
+  .mosh-clock-elapsed-h { font-size: 26px; }
+  .stButton button[kind="primary"] { min-height: 68px !important; font-size: 22px !important; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 def _is_payroll_admin(user: dict) -> bool:
     return user and user.get("role") in ("owner", "payroll_admin")
 
@@ -371,6 +469,8 @@ def _render_shift_summary(staffs: list, shifts: list, store_code: str, ym: str, 
 # ─────────────────────────────────────────
 
 def render_my_shift_tab(user: dict):
+    """マイシフト（スマホファースト・カード型タイムライン）"""
+    _inject_mobile_css()
     st.markdown("### 🗓 マイシフト")
 
     staff_id = user.get("staff_id")
@@ -383,7 +483,14 @@ def render_my_shift_tab(user: dict):
         st.error("スタッフ情報が見つかりません。")
         return
 
-    st.caption(f"👤 {staff['display_name']}（{staff.get('nickname','')}）/ 主所属: {STORE_CODE_TO_NAME.get(staff['primary_store'], staff['primary_store'])}")
+    # スタッフ情報ヘッダーカード
+    pos_emoji = {"店長": "👑", "副店長": "⭐", "店長代理（共同）": "⭐", "研修生": "🌱"}.get(staff.get("position",""), "👤")
+    st.markdown(f"""
+<div class="mosh-staff-header">
+    <div class="mosh-staff-name">{pos_emoji} {staff['display_name']}</div>
+    <div class="mosh-staff-meta">🏪 {STORE_CODE_TO_NAME.get(staff['primary_store'], staff['primary_store'])}　/　{staff.get('position', 'スタッフ')}</div>
+</div>
+""", unsafe_allow_html=True)
 
     # 月選択
     today = date.today()
@@ -391,14 +498,11 @@ def render_my_shift_tab(user: dict):
     for i in range(-1, 3):
         d = (today.replace(day=1) + timedelta(days=32 * i)).replace(day=1)
         ym_options.append(d.strftime("%Y-%m"))
-    ym = st.selectbox("月", ym_options, index=1, key="my_shift_ym")
+    ym = st.selectbox("月を選択", ym_options, index=1, key="my_shift_ym")
 
     shifts = shift_db.get_shifts_by_month(ym, staff_id=staff_id)
-    if not shifts:
-        st.info("この月のシフトはまだ登録されていません。")
-        return
 
-    rows = []
+    # 月次サマリー（先に計算）
     total_actual = 0.0
     total_expected_pay = 0
     rate = pl.calc_hourly_rate(
@@ -408,6 +512,7 @@ def render_my_shift_tab(user: dict):
         monthly_standard_hours=staff["monthly_standard_hours"],
         position_allowance_per_hour=staff["position_allowance_per_hour"],
     )
+    shift_cards = []
     for s in shifts:
         start_dt, end_dt = _shift_to_datetimes(s["shift_date"], s["start_time"], s["end_time"], s["crosses_midnight"])
         split = pl.split_work_hours(start_dt, end_dt, staff["employment_type"],
@@ -415,25 +520,71 @@ def render_my_shift_tab(user: dict):
         pay = pl.calc_single_shift_pay(split, rate)
         total_actual += split["actual_hours"]
         total_expected_pay += sum(pay.values())
-        rows.append({
-            "日付": s["shift_date"].strftime("%-m/%-d (%a)") if hasattr(s["shift_date"], "strftime") else str(s["shift_date"]),
-            "店舗": STORE_CODE_TO_NAME.get(s["store"], s["store"]),
-            "時間帯": _format_time_cell(s["start_time"], s["end_time"], s["crosses_midnight"]),
-            "拘束": f"{split['raw_hours']:.1f}h",
-            "実労働": f"{split['actual_hours']:.1f}h",
-        })
+        shift_cards.append({"shift": s, "split": split, "pay_total": sum(pay.values())})
 
-    df = pd.DataFrame(rows)
-    col1, col2 = st.columns(2)
+    # サマリーカード
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("月間総実労働", f"{total_actual:.1f}h")
+        st.metric("出勤日数", f"{len(shift_cards)}日")
     with col2:
+        st.metric("実労働", f"{total_actual:.1f}h")
+    with col3:
         if staff["employment_type"] == "社員":
-            st.metric("月給", f"¥{staff['base_monthly_salary']:,}" if staff["base_monthly_salary"] else "未設定")
+            label = "月給"
+            val = f"¥{staff['base_monthly_salary']:,}" if staff["base_monthly_salary"] else "未設定"
         else:
-            st.metric("予定収入（見込）", f"¥{total_expected_pay:,}" if total_expected_pay else "—")
+            label = "予定収入"
+            val = f"¥{total_expected_pay:,}" if total_expected_pay else "—"
+        st.metric(label, val)
 
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    if not shift_cards:
+        st.info("📭 この月のシフトはまだ登録されていません")
+        return
+
+    st.markdown("---")
+    st.markdown("#### 📅 シフト一覧")
+
+    weekday_jp = ["月", "火", "水", "木", "金", "土", "日"]
+    weekday_color = ["", "", "", "", "", "#4A90E2", "#E25555"]  # 土青・日赤
+    try:
+        import jpholiday
+        has_jpholiday = True
+    except Exception:
+        has_jpholiday = False
+
+    # カード型タイムライン
+    for c in shift_cards:
+        s = c["shift"]
+        sp = c["split"]
+        dt = s["shift_date"]
+        wd = dt.weekday()
+        wd_color = weekday_color[wd]
+        is_holiday = has_jpholiday and jpholiday.is_holiday(dt)
+        date_color = "#E25555" if (wd == 6 or is_holiday) else (wd_color if wd_color else "#333")
+        time_label = _format_time_cell(s["start_time"], s["end_time"], s["crosses_midnight"])
+        store_name = STORE_CODE_TO_NAME.get(s["store"], s["store"])
+
+        st.markdown(f"""
+<div class="mosh-shift-card">
+    <div class="mosh-shift-date" style="color: {date_color};">
+        {dt.month}/{dt.day} ({weekday_jp[wd]}){'🟡' if is_holiday else ''}
+    </div>
+    <div class="mosh-shift-store">🏪 {store_name}</div>
+    <div class="mosh-shift-time">⏰ {time_label}</div>
+    <div class="mosh-shift-hours">
+        実労働 <strong>{sp['actual_hours']:.1f}h</strong>
+        <span class="mosh-shift-sub">（拘束 {sp['raw_hours']:.1f}h / 休憩 {sp['break_minutes']}分）</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown("---")
+    df = pd.DataFrame([{
+        "日付": f"{c['shift']['shift_date'].month}/{c['shift']['shift_date'].day}",
+        "店舗": STORE_CODE_TO_NAME.get(c['shift']['store'], c['shift']['store']),
+        "時間帯": _format_time_cell(c['shift']['start_time'], c['shift']['end_time'], c['shift']['crosses_midnight']),
+        "実労働": f"{c['split']['actual_hours']:.1f}h",
+    } for c in shift_cards])
     _csv_download(df, f"my_shifts_{staff_id}_{ym}.csv")
 
 
@@ -442,7 +593,9 @@ def render_my_shift_tab(user: dict):
 # ─────────────────────────────────────────
 
 def render_timecard_tab(user: dict):
-    st.markdown("### ⏱ 打刻（出退勤）")
+    """打刻（スマホファースト・巨大ボタン）"""
+    _inject_mobile_css()
+    st.markdown("### ⏱ 打刻")
 
     staff_id = user.get("staff_id")
     if not staff_id:
@@ -452,60 +605,88 @@ def render_timecard_tab(user: dict):
     staff = shift_db.get_staff(staff_id)
     open_log = shift_db.get_open_time_log(staff_id)
 
-    st.markdown(f"#### 👤 {staff['display_name']}")
+    # 現在時刻
+    now = datetime.now()
+    pos_emoji = {"店長": "👑", "副店長": "⭐", "店長代理（共同）": "⭐", "研修生": "🌱"}.get(staff.get("position",""), "👤")
 
     if open_log:
-        # 退勤前の状態
-        st.success(f"🟢 出勤中（{open_log['clock_in'].strftime('%H:%M')} ～）")
-        elapsed = (datetime.now(open_log["clock_in"].tzinfo) - open_log["clock_in"])
-        st.caption(f"経過時間: {elapsed.total_seconds() / 3600:.2f} 時間")
-        if st.button("🔴 退勤", type="primary", use_container_width=True):
+        # 出勤中
+        clock_in_time = open_log["clock_in"]
+        elapsed = (datetime.now(clock_in_time.tzinfo) - clock_in_time)
+        elapsed_h = elapsed.total_seconds() / 3600
+        st.markdown(f"""
+<div class="mosh-clock-card clock-status-active">
+    <div class="mosh-clock-staff">{pos_emoji} {staff['display_name']}</div>
+    <div class="mosh-clock-store">🏪 {STORE_CODE_TO_NAME.get(open_log['store'], open_log['store'])}</div>
+    <div class="mosh-clock-now">🕐 現在 {now.strftime('%H:%M')}</div>
+    <div class="mosh-clock-status">🟢 出勤中</div>
+    <div class="mosh-clock-elapsed">
+        出勤 {clock_in_time.strftime('%H:%M')} から<br>
+        <span class="mosh-clock-elapsed-h">{elapsed_h:.1f} 時間</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+        if st.button("🔴  退　勤  🔴", type="primary", use_container_width=True, key="clock_out_btn"):
             shift_db.clock_out(open_log["id"])
-            st.success("退勤しました。お疲れさまでした！")
+            st.success("✅ 退勤しました。お疲れさまでした！")
             time_module.sleep(1)
             st.rerun()
     else:
-        # 出勤前の状態
-        st.info("⚪ 未出勤")
-        store_code = st.selectbox("勤務店舗",
-                                     [c for c, _ in STORE_OPTIONS],
-                                     format_func=lambda c: STORE_CODE_TO_NAME.get(c, c),
-                                     index=[c for c, _ in STORE_OPTIONS].index(staff["primary_store"])
-                                     if staff["primary_store"] in [c for c, _ in STORE_OPTIONS] else 0,
-                                     key="clock_in_store")
-        if st.button("🟢 出勤", type="primary", use_container_width=True):
+        # 未出勤
+        st.markdown(f"""
+<div class="mosh-clock-card clock-status-idle">
+    <div class="mosh-clock-staff">{pos_emoji} {staff['display_name']}</div>
+    <div class="mosh-clock-now">🕐 現在 {now.strftime('%H:%M')}</div>
+    <div class="mosh-clock-status">⚪ 未出勤</div>
+</div>
+""", unsafe_allow_html=True)
+
+        store_code = st.selectbox(
+            "🏪 勤務店舗を選んでください",
+            [c for c, _ in STORE_OPTIONS],
+            format_func=lambda c: STORE_CODE_TO_NAME.get(c, c),
+            index=[c for c, _ in STORE_OPTIONS].index(staff["primary_store"])
+                if staff["primary_store"] in [c for c, _ in STORE_OPTIONS] else 0,
+            key="clock_in_store",
+        )
+        if st.button("🟢  出　勤  🟢", type="primary", use_container_width=True, key="clock_in_btn"):
             shift_db.clock_in(staff_id, store_code)
-            st.success("出勤を記録しました！")
+            st.success("✅ 出勤を記録しました！")
             time_module.sleep(1)
             st.rerun()
 
-    # 当月の打刻履歴
+    # 当月の打刻履歴（折りたたみ）
     st.markdown("---")
-    st.markdown("#### 📋 今月の打刻履歴")
-    ym = date.today().strftime("%Y-%m")
-    logs = shift_db.get_time_logs_by_month(ym, staff_id=staff_id)
-    if not logs:
-        st.caption("打刻履歴はまだありません")
-        return
-    rows = []
-    for log in logs:
-        clock_in = log["clock_in"]
-        clock_out = log["clock_out"]
-        if clock_in and clock_out:
-            split = pl.split_work_hours(clock_in.replace(tzinfo=None), clock_out.replace(tzinfo=None),
-                                         staff["employment_type"])
-            actual = f"{split['actual_hours']:.1f}h"
-        else:
-            actual = "—"
-        rows.append({
-            "日付": log["work_date"].strftime("%-m/%-d"),
+    with st.expander("📋 今月の打刻履歴を見る"):
+        ym = date.today().strftime("%Y-%m")
+        logs = shift_db.get_time_logs_by_month(ym, staff_id=staff_id)
+        if not logs:
+            st.caption("打刻履歴はまだありません")
+            return
+        for log in logs:
+            ci = log["clock_in"]
+            co = log["clock_out"]
+            if ci and co:
+                split = pl.split_work_hours(ci.replace(tzinfo=None), co.replace(tzinfo=None),
+                                             staff["employment_type"])
+                status_str = f"⏰ {ci.strftime('%H:%M')} - {co.strftime('%H:%M')} / 実労働 {split['actual_hours']:.1f}h"
+            else:
+                status_str = f"⏰ {ci.strftime('%H:%M')} - 🟢出勤中"
+            st.markdown(f"""
+<div class="mosh-log-card">
+    <div class="mosh-log-date">{log['work_date'].month}/{log['work_date'].day}</div>
+    <div class="mosh-log-store">🏪 {STORE_CODE_TO_NAME.get(log['store'], log['store'])}</div>
+    <div class="mosh-log-time">{status_str}</div>
+</div>
+""", unsafe_allow_html=True)
+        rows = [{
+            "日付": log["work_date"].strftime("%Y-%m-%d"),
             "店舗": STORE_CODE_TO_NAME.get(log["store"], log["store"]),
-            "出勤": clock_in.strftime("%H:%M") if clock_in else "—",
-            "退勤": clock_out.strftime("%H:%M") if clock_out else "🟢出勤中",
-            "実労働": actual,
-        })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-    _csv_download(pd.DataFrame(rows), f"my_timelogs_{staff_id}_{ym}.csv")
+            "出勤": log["clock_in"].strftime("%H:%M") if log["clock_in"] else "",
+            "退勤": log["clock_out"].strftime("%H:%M") if log["clock_out"] else "",
+        } for log in logs]
+        _csv_download(pd.DataFrame(rows), f"my_timelogs_{staff_id}_{ym}.csv")
 
 
 # ─────────────────────────────────────────
@@ -531,60 +712,100 @@ def render_shift_request_tab(user: dict):
 
 
 def _render_submit_request(user: dict, ym: str):
+    _inject_mobile_css()
     staff_id = user.get("staff_id")
     if not staff_id:
         st.warning("あなたのアカウントはまだスタッフマスターに紐付いていません。")
         return
     staff = shift_db.get_staff(staff_id)
-    st.caption(f"👤 {staff['display_name']} / 来月 {ym} の希望を提出してください")
+
+    # ヘッダーカード
+    pos_emoji = {"店長": "👑", "副店長": "⭐", "店長代理（共同）": "⭐", "研修生": "🌱"}.get(staff.get("position",""), "👤")
+    st.markdown(f"""
+<div class="mosh-staff-header">
+    <div class="mosh-staff-name">{pos_emoji} {staff['display_name']}</div>
+    <div class="mosh-staff-meta">📅 {ym} のシフト希望を提出</div>
+</div>
+""", unsafe_allow_html=True)
 
     year, month = map(int, ym.split("-"))
     _, days_in_month = calendar.monthrange(year, month)
 
     existing = {r["request_date"]: r for r in shift_db.get_shift_requests(ym, staff_id=staff_id)}
 
-    rows = []
-    for d in range(1, days_in_month + 1):
-        rd = date(year, month, d)
-        r = existing.get(rd)
-        rows.append({
-            "日付": rd.strftime("%-m/%-d (%a)"),
-            "希望": r["request_type"] if r else "—",
-            "希望時間帯": _format_request_time(r) if r else "",
-            "備考": r["note"] if r else "",
-            "_date": rd,
-        })
-    df = pd.DataFrame(rows)
-    edited = st.data_editor(
-        df.drop(columns=["_date"]),
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "希望": st.column_config.SelectboxColumn(
-                options=["—", "出れる", "休み希望", "時間指定"],
-                required=False,
-            ),
-            "希望時間帯": st.column_config.TextColumn(help="例: 15-24"),
-        },
-        disabled=["日付"],
-        key=f"req_editor_{ym}",
-    )
+    weekday_jp = ["月", "火", "水", "木", "金", "土", "日"]
+    try:
+        import jpholiday
+        has_jpholiday = True
+    except Exception:
+        has_jpholiday = False
 
-    if st.button("💾 希望を保存", type="primary"):
+    type_options = ["未定", "出れる", "休み希望", "時間指定"]
+    type_to_db = {"出れる": "available", "休み希望": "unavailable", "時間指定": "preferred"}
+    db_to_type = {v: k for k, v in type_to_db.items()}
+
+    st.caption("📝 各日付の希望を選んでください。「時間指定」を選んだら時間帯も入力してください（例: 15-24）。")
+
+    # 各日付カード（formでまとめてsubmit）
+    with st.form(f"req_form_{ym}", clear_on_submit=False):
+        choices = {}
+        time_inputs = {}
+        notes = {}
+        for d in range(1, days_in_month + 1):
+            rd = date(year, month, d)
+            wd = rd.weekday()
+            r = existing.get(rd)
+            current_type = db_to_type.get(r["request_type"]) if r else "未定"
+            current_time = _format_request_time(r) if r else ""
+            current_note = r["note"] if r else ""
+
+            is_holiday = has_jpholiday and jpholiday.is_holiday(rd)
+            date_emoji = "🟡" if is_holiday else ("🔴" if wd == 6 else ("🔵" if wd == 5 else ""))
+            label = f"{date_emoji}{d}日({weekday_jp[wd]})"
+
+            cols = st.columns([1.2, 1.5, 1.3, 2])
+            with cols[0]:
+                st.markdown(f"<div style='padding-top:8px;font-weight:600;font-size:16px;'>{label}</div>", unsafe_allow_html=True)
+            with cols[1]:
+                choices[rd] = st.selectbox(
+                    "希望", type_options,
+                    index=type_options.index(current_type),
+                    key=f"req_choice_{rd}",
+                    label_visibility="collapsed",
+                )
+            with cols[2]:
+                time_inputs[rd] = st.text_input(
+                    "時間",
+                    value=current_time,
+                    key=f"req_time_{rd}",
+                    placeholder="15-24",
+                    label_visibility="collapsed",
+                )
+            with cols[3]:
+                notes[rd] = st.text_input(
+                    "備考",
+                    value=current_note,
+                    key=f"req_note_{rd}",
+                    placeholder="（任意）",
+                    label_visibility="collapsed",
+                )
+
+        submitted = st.form_submit_button("💾 希望を一括保存", type="primary", use_container_width=True)
+
+    if submitted:
         cnt = 0
-        for i, row in edited.iterrows():
-            rd = df.iloc[i]["_date"]
-            rtype_map = {"出れる": "available", "休み希望": "unavailable", "時間指定": "preferred"}
-            rtype = rtype_map.get(row["希望"])
+        for rd, ctype in choices.items():
+            rtype = type_to_db.get(ctype)
             if not rtype:
                 continue
             pstart, pend = None, None
-            parsed = _parse_time_cell(row["希望時間帯"])
+            parsed = _parse_time_cell(time_inputs[rd])
             if parsed:
                 pstart, pend = parsed[0], parsed[1]
-            shift_db.upsert_shift_request(staff_id, ym, rd, rtype, pstart, pend, row.get("備考","") or "")
+            shift_db.upsert_shift_request(staff_id, ym, rd, rtype, pstart, pend, notes[rd] or "")
             cnt += 1
         st.success(f"✅ {cnt}件の希望を保存しました")
+        time_module.sleep(1)
         st.rerun()
 
 
