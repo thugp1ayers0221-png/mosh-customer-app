@@ -44,7 +44,7 @@ STORE_CODE_TO_SHORT = {
     "masons": "メ",
     "higashimurayama": "東",
     "nishifunabashi": "西",
-    "otaka": "大",
+    "otaka": "お",
     "matsudo": "松",
 }
 
@@ -726,10 +726,10 @@ def render_shift_create_tab(user: dict):
 
     st.caption("例: `15-24`（15時〜24時）/ `15-29`（15時〜翌5時）/ 休みは空欄・`休`・`×`・`ー`　　`[西15-22]` 形式は他店シフト（編集不可）")
 
-    # 各日付列の幅を狭く
+    # 列幅: スタッフ名は small、日付列は medium（[メ18:45-29] のような長い文字列も読める幅）
     column_config = {"スタッフ": st.column_config.TextColumn(width="small", pinned="left")}
     for header in day_headers:
-        column_config[header] = st.column_config.TextColumn(width="small")
+        column_config[header] = st.column_config.TextColumn(width="medium")
 
     # 編集
     edited = st.data_editor(
