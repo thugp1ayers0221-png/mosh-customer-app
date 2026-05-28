@@ -140,7 +140,34 @@ section[data-testid="stSidebar"] {
     display: none !important;
   }
 }
-/* スマホでは Streamlit のハンバーガー自動制御に任せる */
+/* スマホ: サイドバーを閉じても再表示用のハンバーガーボタンを必ず出す */
+@media (max-width: 768px) {
+  [data-testid="collapsedControl"],
+  [data-testid="stSidebarCollapsedControl"],
+  button[data-testid="baseButton-headerNoPadding"],
+  button[kind="headerNoPadding"],
+  button[aria-label="Open sidebar"],
+  button[aria-label="Show sidebar"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 999999 !important;
+    position: fixed !important;
+    top: 8px !important;
+    left: 8px !important;
+    background: var(--sq-bg) !important;
+    border: 1px solid var(--sq-border) !important;
+    border-radius: var(--sq-radius) !important;
+    padding: 8px !important;
+    box-shadow: var(--sq-shadow) !important;
+  }
+  header[data-testid="stHeader"] {
+    display: block !important;
+    visibility: visible !important;
+    background: transparent !important;
+    z-index: 999998 !important;
+  }
+}
 section[data-testid="stSidebar"] > div:first-child {
   padding-top: 8px !important;
   background: var(--sq-bg) !important;
