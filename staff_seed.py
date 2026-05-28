@@ -53,7 +53,8 @@ STAFF_DATA = [
     {"display_name": "箕輪加奈",   "last_name": "箕輪", "first_name": "加奈",   "nickname": "カナ",
      "primary_store": "nishifunabashi",
      "available_stores": ["nishifunabashi","otaka"],
-     "position": "マネージャー", "employment_type": "社員", "username": "kana001", "payroll_admin": True},
+     "position": "マネージャー", "employment_type": "社員", "username": "kana001", "payroll_admin": True,
+     "monthly_target_hours": 140},
 
     # ── 店長（4名） ──
     {"display_name": "池田愛美",   "last_name": "池田", "first_name": "愛美",   "nickname": "あみ",
@@ -150,10 +151,7 @@ STAFF_DATA = [
      "position": "事務", "employment_type": "業務委託", "username": "takase_nishi"},
 
     # ── 本部・不在席 ──
-    {"display_name": "新畑加奈",   "last_name": "新畑", "first_name": "加奈",   "nickname": "新畑",
-     "primary_store": "kashiwa",
-     "position": "本部スタッフ", "employment_type": "社員", "username": "niihata001",
-     "monthly_target_hours": 140},
+    # ※「新畑加奈」は離婚により「箕輪加奈」と同一人物に統合済み（2026-05-29）
 ]
 
 DEFAULT_PASSWORD = "MOSH4148"
