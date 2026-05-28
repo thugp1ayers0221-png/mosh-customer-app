@@ -104,7 +104,10 @@ html, body, [class*="css"], .stApp {
 }
 .stApp { background: var(--sq-bg-subtle); }
 section[data-testid="stMain"] .block-container {
-  padding-top: 1rem;
+  padding-top: 1rem !important;
+  padding-left: 1.25rem !important;
+  padding-right: 1.25rem !important;
+  padding-bottom: 1rem !important;
   max-width: 100% !important;
   animation: mosh-page-fade-in 0.18s ease-out;
 }
