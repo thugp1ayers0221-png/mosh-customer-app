@@ -1159,7 +1159,7 @@ def show_detail():
                             st.info("別人として記録しました")
 
     # タブ
-    tab1, tab2, tab3 = st.tabs(["📅 来店ログ", "📊 統計", "📝 メモ・設定"])
+    tab1, tab2, tab3 = st.tabs(["来店ログ", "統計", "メモ・設定"])
 
     # ────── Tab1: 来店ログ ──────
     with tab1:
@@ -1233,7 +1233,7 @@ def show_detail():
     with tab3:
         # メモ表示
         if c["notes"]:
-            st.markdown("**📝 スタッフメモ**")
+            st.markdown("**スタッフメモ**")
             for line in c["notes"].strip().split('\n'):
                 if line:
                     st.caption(line)
@@ -1492,7 +1492,7 @@ def show_dashboard():
               box-sizing:border-box;
             ">
               <div style="font-size:1.05rem;font-weight:600;color:#2D1F0F;margin-bottom:8px;">
-                🏪 {store}
+                {store}
               </div>
               <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:flex-start;">
                 <div style="text-align:center;flex:1;min-width:0;">
@@ -1728,7 +1728,7 @@ def generate_password(length=8):
     return ''.join(random.choices(chars, k=length))
 
 def show_user_management():
-    st.markdown("#### 👤 スタッフアカウント管理")
+    st.markdown("#### スタッフアカウント管理")
 
     # 現在のユーザー一覧
     users = db.get_all_users()
@@ -2467,7 +2467,7 @@ def show_operations():
     user = st.session_state.user
     store = user.get("store", "") or ""
     store_label = store if store else "MOSH"
-    st.markdown("### 📢 今日の営業")
+    st.markdown("### 今日の営業")
     op_tab1, op_tab2, op_tab3 = st.tabs(["🟢 オープン告知", "🌙 終業報告", "🖼 フリー画像生成"])
 
     with op_tab1:
@@ -2479,7 +2479,7 @@ def show_operations():
             ops_store = store
         else:
             ops_store = st.selectbox(
-                "🏪 店舗を選んでください",
+                "店舗を選んでください",
                 options=known_stores,
                 key="ops_store"
             )
@@ -2499,7 +2499,7 @@ def show_operations():
         # スタイル選択（1〜5）
         style_options = list(ANNOUNCE_STYLES.keys())
         selected_style = st.selectbox(
-            "📝 文体スタイルを選んでください",
+            "文体スタイルを選んでください",
             options=style_options,
             format_func=lambda k: f"{ANNOUNCE_STYLES[k]['label']} — {ANNOUNCE_STYLES[k]['description']}",
             key="ops_style"
@@ -2507,7 +2507,7 @@ def show_operations():
 
         col1, col2 = st.columns(2)
         with col1:
-            gen_text = st.button("📝 告知文を生成", use_container_width=True, type="primary")
+            gen_text = st.button("告知文を生成", use_container_width=True, type="primary")
         with col2:
             gen_img = st.button("🎨 画像を生成", use_container_width=True, disabled=not HAS_GEMINI)
         if gen_text and flavor_input:
@@ -2656,27 +2656,27 @@ def _render_home_dashboard(user: dict):
 
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            st.metric("🟢 現在 出勤中", f"{open_clocks} 名")
+            st.metric("現在 出勤中", f"{open_clocks} 名")
         with c2:
-            st.metric("👥 アクティブスタッフ", f"{staff_count} 名")
+            st.metric("アクティブスタッフ", f"{staff_count} 名")
         with c3:
-            st.metric("📌 今月の確定シフト", f"{confirmed_shifts} 件")
+            st.metric("今月の確定シフト", f"{confirmed_shifts} 件")
         with c4:
-            st.metric("📝 今月の下書き", f"{draft_shifts} 件")
+            st.metric("今月の下書き", f"{draft_shifts} 件")
 
     st.markdown("---")
     st.markdown("### よく使う機能")
 
     # ── クイックリンク ──
     quick_buttons = [
-        ("⏱  打刻", "⏱ 打刻", "出退勤を記録"),
-        ("🗓  マイシフト", "🗓 マイシフト", "自分のシフトを確認"),
-        ("📆  店舗シフト", "📆 店舗シフト", "店舗の確定シフトを見る"),
+        ("打刻", "打刻", "出退勤を記録"),
+        ("マイシフト", "マイシフト", "自分のシフトを確認"),
+        ("店舗シフト", "店舗シフト", "店舗の確定シフトを見る"),
     ]
     if role in ("owner", "payroll_admin", "manager"):
-        quick_buttons.append(("📅  シフト作成", "📅 シフト作成", "シフトを組む"))
+        quick_buttons.append(("シフト作成", "シフト作成", "シフトを組む"))
     if role in ("owner", "payroll_admin"):
-        quick_buttons.append(("💰  給与計算", "💰 給与計算", "月次集計・CSV出力"))
+        quick_buttons.append(("給与計算", "給与計算", "月次集計・CSV出力"))
 
     cols = st.columns(min(len(quick_buttons), 3))
     for i, (label, target_page, desc) in enumerate(quick_buttons):
@@ -2855,47 +2855,47 @@ else:
             # 権限別ナビメニュー
             pages_by_role = {
                 "owner": [
-                    "🗓 マイシフト",
-                    "📆 店舗シフト",
-                    "⏱ 打刻",
-                    "📝 シフト希望",
-                    "📅 シフト作成",
-                    "💰 給与計算",
-                    "👥 スタッフ管理",
-                    "🏪 店舗マスター",
-                    "📦 初期セットアップ",
-                    "👤 顧客一覧",
-                    "📊 ダッシュボード",
-                    "📢 今日の営業",
-                    "⚙️ ユーザー管理",
+                    "マイシフト",
+                    "店舗シフト",
+                    "打刻",
+                    "シフト希望",
+                    "シフト作成",
+                    "給与計算",
+                    "スタッフ管理",
+                    "店舗マスター",
+                    "初期セットアップ",
+                    "顧客一覧",
+                    "ダッシュボード",
+                    "今日の営業",
+                    "ユーザー管理",
                 ],
                 "payroll_admin": [
-                    "🗓 マイシフト",
-                    "📆 店舗シフト",
-                    "⏱ 打刻",
-                    "📝 シフト希望",
-                    "📅 シフト作成",
-                    "💰 給与計算",
-                    "👥 スタッフ管理",
-                    "👤 顧客一覧",
-                    "📊 ダッシュボード",
-                    "📢 今日の営業",
+                    "マイシフト",
+                    "店舗シフト",
+                    "打刻",
+                    "シフト希望",
+                    "シフト作成",
+                    "給与計算",
+                    "スタッフ管理",
+                    "顧客一覧",
+                    "ダッシュボード",
+                    "今日の営業",
                 ],
                 "manager": [
-                    "🗓 マイシフト",
-                    "📆 店舗シフト",
-                    "⏱ 打刻",
-                    "📝 シフト希望",
-                    "📅 シフト作成",
-                    "👤 顧客一覧",
-                    "📊 ダッシュボード",
-                    "📢 今日の営業",
+                    "マイシフト",
+                    "店舗シフト",
+                    "打刻",
+                    "シフト希望",
+                    "シフト作成",
+                    "顧客一覧",
+                    "ダッシュボード",
+                    "今日の営業",
                 ],
                 "staff": [
-                    "🗓 マイシフト",
-                    "📆 店舗シフト",
-                    "⏱ 打刻",
-                    "📝 シフト希望",
+                    "マイシフト",
+                    "店舗シフト",
+                    "打刻",
+                    "シフト希望",
                 ],
             }
             pages = pages_by_role.get(role, pages_by_role["staff"])
@@ -2924,42 +2924,39 @@ else:
                 st.rerun()
 
         # ─── メインエリア（ページ切替時に前のコンテンツをクリア）───
-        # st.empty で囲み、ページ変更時はまず empty() で空にしてから新コンテンツを描画
         main_area = st.empty()
         page_changed = st.session_state.get("_last_main_page") != selected_page
         if page_changed:
-            main_area.empty()  # 古いDOMを即座にクリア
+            main_area.empty()
             st.session_state["_last_main_page"] = selected_page
         with main_area.container():
-            if selected_page == "🏠 ホーム":
-                _render_home_dashboard(user)
-            elif selected_page == "🗓 マイシフト":
+            if selected_page == "マイシフト":
                 shift_ui.render_my_shift_tab(user)
-            elif selected_page == "📆 店舗シフト":
+            elif selected_page == "店舗シフト":
                 shift_ui.render_confirmed_shifts_tab(user)
-            elif selected_page == "⏱ 打刻":
+            elif selected_page == "打刻":
                 shift_ui.render_timecard_tab(user)
-            elif selected_page == "📝 シフト希望":
+            elif selected_page == "シフト希望":
                 shift_ui.render_shift_request_tab(user)
-            elif selected_page == "📅 シフト作成":
+            elif selected_page == "シフト作成":
                 shift_ui.render_shift_create_tab(user)
-            elif selected_page == "💰 給与計算":
+            elif selected_page == "給与計算":
                 shift_ui.render_payroll_tab(user)
-            elif selected_page == "👥 スタッフ管理":
+            elif selected_page == "スタッフ管理":
                 shift_ui.render_staff_admin_tab(user)
-            elif selected_page == "🏪 店舗マスター":
+            elif selected_page == "店舗マスター":
                 shift_ui.render_store_admin_tab(user)
-            elif selected_page == "📦 初期セットアップ":
+            elif selected_page == "初期セットアップ":
                 shift_ui.render_setup_tab(user)
-            elif selected_page == "👤 顧客一覧":
+            elif selected_page == "顧客一覧":
                 shift_ui._inject_mobile_css()
                 show_home()
-            elif selected_page == "📊 ダッシュボード":
+            elif selected_page == "ダッシュボード":
                 shift_ui._inject_mobile_css()
                 show_dashboard()
-            elif selected_page == "📢 今日の営業":
+            elif selected_page == "今日の営業":
                 shift_ui._inject_mobile_css()
                 show_operations()
-            elif selected_page == "⚙️ ユーザー管理":
+            elif selected_page == "ユーザー管理":
                 shift_ui._inject_mobile_css()
                 show_user_management()
