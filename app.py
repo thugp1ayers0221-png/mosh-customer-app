@@ -2860,17 +2860,17 @@ else:
                     ("打刻",             ["owner", "payroll_admin", "manager", "staff"]),
                     ("シフト希望",       ["owner", "payroll_admin", "manager", "staff"]),
                 ]),
+                ("顧客", [
+                    ("顧客一覧",         ["owner", "payroll_admin", "manager"]),
+                    ("ダッシュボード",   ["owner", "payroll_admin", "manager"]),
+                    ("今日の営業",       ["owner", "payroll_admin", "manager"]),
+                ]),
                 ("本部操作", [
                     ("シフト作成",       ["owner", "payroll_admin", "manager"]),
                     ("給与計算",         ["owner", "payroll_admin"]),
                     ("スタッフ管理",     ["owner", "payroll_admin"]),
                     ("店舗マスター",     ["owner"]),
                     ("初期セットアップ", ["owner"]),
-                ]),
-                ("顧客", [
-                    ("顧客一覧",         ["owner", "payroll_admin", "manager"]),
-                    ("ダッシュボード",   ["owner", "payroll_admin", "manager"]),
-                    ("今日の営業",       ["owner", "payroll_admin", "manager"]),
                 ]),
                 ("システム", [
                     ("ユーザー管理",     ["owner"]),
