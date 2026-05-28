@@ -357,19 +357,19 @@ button[data-clock-button="true"], .stButton button[kind="primary"][data-testid*=
   border: 1px solid var(--sq-border) !important;
   box-shadow: var(--sq-shadow-sm);
 }
-/* セル内のフォントサイズと余白を少し縮めて、シフト表で「[メ18:45-29]」も入る幅にする */
+/* セル内のフォントサイズと余白を縮めて、シフト表で「[メ18:45-29]」も入る幅にする */
 [data-testid="stDataEditor"] [role="gridcell"],
 [data-testid="stDataEditor"] [role="columnheader"] {
-  font-size: 12px !important;
-  padding-left: 4px !important;
-  padding-right: 4px !important;
-  letter-spacing: -0.2px;
+  font-size: 11px !important;
+  padding-left: 3px !important;
+  padding-right: 3px !important;
+  letter-spacing: -0.3px;
 }
 [data-testid="stDataFrame"] [role="gridcell"],
 [data-testid="stDataFrame"] [role="columnheader"] {
-  font-size: 12px !important;
-  padding-left: 4px !important;
-  padding-right: 4px !important;
+  font-size: 11px !important;
+  padding-left: 3px !important;
+  padding-right: 3px !important;
 }
 
 /* ─── Metric ─── */
