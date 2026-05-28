@@ -2927,36 +2927,44 @@ else:
                 st.query_params.clear()
                 st.rerun()
 
-        # ─── メインエリア ───
-        if selected_page == "🏠 ホーム":
-            _render_home_dashboard(user)
-        elif selected_page == "🗓 マイシフト":
-            shift_ui.render_my_shift_tab(user)
-        elif selected_page == "📆 店舗シフト":
-            shift_ui.render_confirmed_shifts_tab(user)
-        elif selected_page == "⏱ 打刻":
-            shift_ui.render_timecard_tab(user)
-        elif selected_page == "📝 シフト希望":
-            shift_ui.render_shift_request_tab(user)
-        elif selected_page == "📅 シフト作成":
-            shift_ui.render_shift_create_tab(user)
-        elif selected_page == "💰 給与計算":
-            shift_ui.render_payroll_tab(user)
-        elif selected_page == "👥 スタッフ管理":
-            shift_ui.render_staff_admin_tab(user)
-        elif selected_page == "🏪 店舗マスター":
-            shift_ui.render_store_admin_tab(user)
-        elif selected_page == "📦 初期セットアップ":
-            shift_ui.render_setup_tab(user)
-        elif selected_page == "👤 顧客一覧":
-            shift_ui._inject_mobile_css()
-            show_home()
-        elif selected_page == "📊 ダッシュボード":
-            shift_ui._inject_mobile_css()
-            show_dashboard()
-        elif selected_page == "📢 今日の営業":
-            shift_ui._inject_mobile_css()
-            show_operations()
-        elif selected_page == "⚙️ ユーザー管理":
-            shift_ui._inject_mobile_css()
-            show_user_management()
+        # ─── メインエリア（ページ切替時に前のコンテンツをクリア）───
+        # 前回のページと違う場合は rerun して残存DOMをクリア
+        if st.session_state.get("_last_main_page") != selected_page:
+            st.session_state["_last_main_page"] = selected_page
+            st.rerun()
+
+        # st.empty で囲むことで、ページ描画が完了するまで古いDOMを保持しない
+        main_area = st.empty()
+        with main_area.container():
+            if selected_page == "🏠 ホーム":
+                _render_home_dashboard(user)
+            elif selected_page == "🗓 マイシフト":
+                shift_ui.render_my_shift_tab(user)
+            elif selected_page == "📆 店舗シフト":
+                shift_ui.render_confirmed_shifts_tab(user)
+            elif selected_page == "⏱ 打刻":
+                shift_ui.render_timecard_tab(user)
+            elif selected_page == "📝 シフト希望":
+                shift_ui.render_shift_request_tab(user)
+            elif selected_page == "📅 シフト作成":
+                shift_ui.render_shift_create_tab(user)
+            elif selected_page == "💰 給与計算":
+                shift_ui.render_payroll_tab(user)
+            elif selected_page == "👥 スタッフ管理":
+                shift_ui.render_staff_admin_tab(user)
+            elif selected_page == "🏪 店舗マスター":
+                shift_ui.render_store_admin_tab(user)
+            elif selected_page == "📦 初期セットアップ":
+                shift_ui.render_setup_tab(user)
+            elif selected_page == "👤 顧客一覧":
+                shift_ui._inject_mobile_css()
+                show_home()
+            elif selected_page == "📊 ダッシュボード":
+                shift_ui._inject_mobile_css()
+                show_dashboard()
+            elif selected_page == "📢 今日の営業":
+                shift_ui._inject_mobile_css()
+                show_operations()
+            elif selected_page == "⚙️ ユーザー管理":
+                shift_ui._inject_mobile_css()
+                show_user_management()
