@@ -233,77 +233,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 }
 /* 旧:メインタブ用 CSS は不要になったが、念のため残す（他の st.tabs に効く） */
 
-/* ─── タブを左サイドバー化（PC・769px以上）─── */
-@media (min-width: 769px) {
-  /* 最上位の tab-list のみサイドバー化（ネストには適用しない） */
-  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] {
-    flex-direction: column !important;
-    width: 220px !important;
-    min-width: 220px !important;
-    align-self: flex-start;
-    background: var(--sq-bg);
-    border-right: 1px solid var(--sq-border);
-    border-radius: var(--sq-radius);
-    padding: 12px 8px !important;
-    gap: 2px !important;
-    box-shadow: var(--sq-shadow-sm);
-    position: sticky;
-    top: 1rem;
-  }
-  div[data-testid="stTabs"] > div {
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 20px !important;
-    align-items: flex-start !important;
-  }
-  div[data-testid="stTabs"] > div > div[data-baseweb="tab-panel"] {
-    flex: 1 !important;
-    min-width: 0;
-    padding: 0 !important;
-  }
-  /* タブボタンを縦リストの行に */
-  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] button[role="tab"] {
-    width: 100% !important;
-    text-align: left !important;
-    justify-content: flex-start !important;
-    padding: 10px 14px !important;
-    border-radius: var(--sq-radius) !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    color: var(--sq-text-secondary) !important;
-    background: transparent !important;
-    border: none !important;
-    transition: all 0.15s ease;
-  }
-  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] button[role="tab"]:hover {
-    background: var(--sq-bg-hover) !important;
-    color: var(--sq-text) !important;
-  }
-  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] button[role="tab"][aria-selected="true"] {
-    background: var(--sq-primary-bg) !important;
-    color: var(--sq-primary) !important;
-    font-weight: 600 !important;
-  }
-  /* タブ下のラインを消す */
-  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] div[data-baseweb="tab-highlight"],
-  div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] div[data-baseweb="tab-border"] {
-    display: none !important;
-  }
-  /* ネスト（サブタブ）は横並びを維持 */
-  div[data-testid="stTabs"] div[data-testid="stTabs"] > div > div[data-baseweb="tab-list"] {
-    flex-direction: row !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    position: static;
-    padding: 0 !important;
-  }
-  div[data-testid="stTabs"] div[data-testid="stTabs"] > div {
-    flex-direction: column !important;
-  }
-}
+/* ─── タブは Streamlit ネイティブの横並び表示を使う（st.sidebarでナビしているのでサイドバー化CSSは不要） ─── */
 
 /* ─── ボタン Square風 ─── */
 .stButton > button {
