@@ -140,7 +140,7 @@ section[data-testid="stSidebar"] {
     display: none !important;
   }
 }
-/* スマホ: サイドバーを閉じても再表示用のハンバーガーボタンを必ず出す */
+/* スマホ: サイドバー閉じた時の Streamlit デフォルト再表示ボタンも一応強制表示 */
 @media (max-width: 768px) {
   [data-testid="collapsedControl"],
   [data-testid="stSidebarCollapsedControl"],
@@ -152,14 +152,6 @@ section[data-testid="stSidebar"] {
     visibility: visible !important;
     opacity: 1 !important;
     z-index: 999999 !important;
-    position: fixed !important;
-    top: 8px !important;
-    left: 8px !important;
-    background: var(--sq-bg) !important;
-    border: 1px solid var(--sq-border) !important;
-    border-radius: var(--sq-radius) !important;
-    padding: 8px !important;
-    box-shadow: var(--sq-shadow) !important;
   }
   header[data-testid="stHeader"] {
     display: block !important;
@@ -167,6 +159,31 @@ section[data-testid="stSidebar"] {
     background: transparent !important;
     z-index: 999998 !important;
   }
+  /* 自作の絶対固定ハンバーガー（Streamlitデフォが効かない場合のフォールバック） */
+  #mosh-mobile-toggle {
+    position: fixed !important;
+    top: 10px !important;
+    left: 10px !important;
+    z-index: 9999999 !important;
+    background: white !important;
+    border: 1px solid var(--sq-border) !important;
+    border-radius: 10px !important;
+    padding: 10px 13px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
+    cursor: pointer !important;
+    font-size: 22px !important;
+    line-height: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 44px !important;
+    height: 44px !important;
+    color: var(--sq-text) !important;
+  }
+}
+/* PCでは自作トグルは非表示 */
+@media (min-width: 769px) {
+  #mosh-mobile-toggle { display: none !important; }
 }
 section[data-testid="stSidebar"] > div:first-child {
   padding-top: 8px !important;
@@ -617,6 +634,24 @@ footer { visibility: hidden; }
 <meta name="apple-mobile-web-app-title" content="MOSH勤怠">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#006AFF">
+
+<!-- 自作モバイル用サイドバートグル（Streamlitデフォが効かない場合のフォールバック） -->
+<button id="mosh-mobile-toggle" onclick="
+  var d = document;
+  var btn = d.querySelector('[data-testid=stSidebarCollapsedControl] button') ||
+            d.querySelector('[data-testid=collapsedControl] button') ||
+            d.querySelector('[data-testid=stSidebarCollapsedControl]') ||
+            d.querySelector('[data-testid=collapsedControl]') ||
+            d.querySelector('[data-testid=stSidebarCollapseButton]') ||
+            d.querySelector('header [data-testid] button');
+  if (btn) { btn.click(); return; }
+  var sb = d.querySelector('section[data-testid=stSidebar]');
+  if (sb) {
+    sb.style.transform = 'translateX(0)';
+    sb.style.visibility = 'visible';
+    sb.setAttribute('aria-expanded', 'true');
+  }
+">≡</button>
 """, unsafe_allow_html=True)
 
 
