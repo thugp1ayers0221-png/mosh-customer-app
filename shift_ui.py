@@ -2225,6 +2225,219 @@ def render_staff_admin_tab(user: dict):
 # 7. 店舗マスター管理（簡易・owner のみ）
 # ─────────────────────────────────────────
 
+def render_attendance_admin_tab(user: dict):
+    """スタッフ別の月次出勤実績を見て修正できる画面（経営陣専用）"""
+    st.markdown("### 出勤管理")
+
+    if not _is_payroll_admin(user):
+        st.error("この画面は経営陣（owner / payroll_admin）専用です")
+        return
+    if not require_payroll_unlock("attendance_admin"):
+        return
+
+    # スタッフ選択
+    all_staffs = shift_db.get_all_staff(active_only=True)
+    if not all_staffs:
+        st.info("スタッフがいません")
+        return
+
+    col_s, col_m = st.columns(2)
+    with col_s:
+        staff_name = st.selectbox(
+            "スタッフ",
+            [s["display_name"] for s in all_staffs],
+            key="attend_staff",
+        )
+    with col_m:
+        today = date.today()
+        ym_options = []
+        for i in range(-6, 2):
+            d = (today.replace(day=1) + timedelta(days=32 * i)).replace(day=1)
+            ym_options.append(d.strftime("%Y-%m"))
+        ym = st.selectbox("月", ym_options, index=6, key="attend_ym")
+
+    staff = next((s for s in all_staffs if s["display_name"] == staff_name), None)
+    if not staff:
+        return
+
+    logs = shift_db.get_time_logs_by_month(ym, staff_id=staff["id"])
+
+    # サマリー
+    total_actual = 0.0
+    for l in logs:
+        if l["clock_in"] and l["clock_out"]:
+            ci = l["clock_in"]
+            co = l["clock_out"]
+            if ci.tzinfo:
+                ci = ci.astimezone(shift_db.JST).replace(tzinfo=None)
+            if co.tzinfo:
+                co = co.astimezone(shift_db.JST).replace(tzinfo=None)
+            split = pl.split_work_hours(ci, co, staff["employment_type"])
+            total_actual += split["actual_hours"]
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("出勤日数", f"{len([l for l in logs if l['clock_out']])} 日")
+    with c2:
+        st.metric("打刻件数（未退勤含む）", f"{len(logs)} 件")
+    with c3:
+        st.metric("実労働時間 合計", f"{total_actual:.1f} h")
+
+    st.markdown("---")
+    st.markdown("#### 打刻ログ一覧（編集可能）")
+    st.caption("時刻は HH:MM 形式で編集してください。空欄保存で「未打刻」扱い。")
+
+    if not logs:
+        st.info("この月の打刻はまだありません。下から新規追加できます。")
+    else:
+        rows = []
+        for l in logs:
+            ci = l["clock_in"]
+            co = l["clock_out"]
+            if ci and ci.tzinfo:
+                ci = ci.astimezone(shift_db.JST)
+            if co and co.tzinfo:
+                co = co.astimezone(shift_db.JST)
+            rows.append({
+                "ID": l["id"],
+                "日付": l["work_date"].strftime("%Y-%m-%d"),
+                "店舗": STORE_CODE_TO_NAME.get(l["store"], l["store"]),
+                "出勤時刻": ci.strftime("%H:%M") if ci else "",
+                "退勤時刻": co.strftime("%H:%M") if co else "",
+                "備考": l["note"] or "",
+                "削除": False,
+            })
+        df = pd.DataFrame(rows)
+        edited = st.data_editor(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            disabled=["ID", "日付"],
+            column_config={
+                "店舗": st.column_config.SelectboxColumn(
+                    options=[n for _, n in STORE_OPTIONS],
+                ),
+                "出勤時刻": st.column_config.TextColumn(help="例: 15:00"),
+                "退勤時刻": st.column_config.TextColumn(help="例: 24:00 / 翌5時なら 29:00"),
+                "削除": st.column_config.CheckboxColumn(help="チェックして保存すると削除"),
+            },
+            key=f"attend_editor_{staff['id']}_{ym}",
+        )
+
+        if st.button("変更を保存", type="primary", key="save_attend"):
+            updated = 0
+            deleted = 0
+            errors = []
+            for i, row in edited.iterrows():
+                orig = df.iloc[i]
+                log_id = int(row["ID"])
+                # 削除フラグ
+                if row["削除"]:
+                    try:
+                        shift_db.delete_time_log(log_id)
+                        deleted += 1
+                    except Exception as e:
+                        errors.append(f"ID={log_id} 削除失敗: {e}")
+                    continue
+                # 変更検出
+                changed = {}
+                # 店舗
+                if row["店舗"] != orig["店舗"]:
+                    new_code = STORE_NAME_TO_CODE.get(row["店舗"])
+                    if new_code:
+                        changed["store"] = new_code
+                # 備考
+                if row["備考"] != orig["備考"]:
+                    changed["note"] = row["備考"] or ""
+                # 出退勤時刻（日付 + HH:MM をJST datetimeに変換）
+                work_date_str = orig["日付"]
+                try:
+                    wd = datetime.strptime(work_date_str, "%Y-%m-%d").date()
+                except ValueError:
+                    continue
+
+                def parse_hhmm_to_jst_dt(hhmm: str, base_date: date):
+                    if not hhmm or not hhmm.strip():
+                        return None
+                    s = hhmm.strip()
+                    m = re.match(r"^(\d{1,2}):(\d{1,2})$", s)
+                    if not m:
+                        return None
+                    h, mi = int(m.group(1)), int(m.group(2))
+                    day_offset = h // 24
+                    h = h % 24
+                    dt = datetime.combine(base_date + timedelta(days=day_offset), time(h, mi))
+                    return dt.replace(tzinfo=shift_db.JST)
+
+                if row["出勤時刻"] != orig["出勤時刻"]:
+                    ci_new = parse_hhmm_to_jst_dt(row["出勤時刻"], wd)
+                    changed["clock_in"] = ci_new
+                if row["退勤時刻"] != orig["退勤時刻"]:
+                    co_new = parse_hhmm_to_jst_dt(row["退勤時刻"], wd)
+                    changed["clock_out"] = co_new
+
+                if changed:
+                    try:
+                        shift_db.update_time_log(log_id, **changed)
+                        updated += 1
+                    except Exception as e:
+                        errors.append(f"ID={log_id} 更新失敗: {e}")
+
+            if errors:
+                for e in errors:
+                    st.error(e)
+            st.success(f"✅ 更新 {updated} 件 / 削除 {deleted} 件")
+            st.rerun()
+
+    # ── 新規追加フォーム ──
+    st.markdown("---")
+    with st.expander("打刻を新規追加（手動入力）"):
+        with st.form(f"add_log_form_{staff['id']}_{ym}"):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                new_date = st.date_input("日付", value=date.today())
+            with c2:
+                new_store = st.selectbox(
+                    "店舗",
+                    [c for c, _ in STORE_OPTIONS],
+                    format_func=lambda c: STORE_CODE_TO_NAME.get(c, c),
+                    index=[c for c, _ in STORE_OPTIONS].index(staff["primary_store"])
+                        if staff["primary_store"] in [c for c, _ in STORE_OPTIONS] else 0,
+                )
+            with c3:
+                pass
+            c4, c5, c6 = st.columns(3)
+            with c4:
+                new_in = st.text_input("出勤時刻", placeholder="例: 15:00")
+            with c5:
+                new_out = st.text_input("退勤時刻", placeholder="例: 24:00")
+            with c6:
+                new_note = st.text_input("備考（任意）", placeholder="例: 手動修正")
+            submitted = st.form_submit_button("追加", type="primary")
+            if submitted:
+                def parse_hhmm(hhmm, base_d):
+                    if not hhmm or not hhmm.strip():
+                        return None
+                    m = re.match(r"^(\d{1,2}):(\d{1,2})$", hhmm.strip())
+                    if not m:
+                        return None
+                    h, mi = int(m.group(1)), int(m.group(2))
+                    day_offset = h // 24
+                    return datetime.combine(base_d + timedelta(days=day_offset), time(h % 24, mi)).replace(tzinfo=shift_db.JST)
+
+                ci = parse_hhmm(new_in, new_date)
+                co = parse_hhmm(new_out, new_date)
+                if not ci:
+                    st.error("出勤時刻は必須です（HH:MM 形式）")
+                else:
+                    shift_db.create_time_log(
+                        staff_id=staff["id"], store=new_store, work_date=new_date,
+                        clock_in_dt=ci, clock_out_dt=co, note=new_note or "手動追加",
+                    )
+                    st.success("✅ 打刻を追加しました")
+                    st.rerun()
+
+
 def render_store_admin_tab(user: dict):
     if user.get("role") != "owner":
         st.error("この画面は owner 専用です")

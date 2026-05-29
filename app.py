@@ -2867,6 +2867,7 @@ else:
                 ]),
                 ("本部操作", [
                     ("シフト作成",       ["owner", "payroll_admin", "manager"]),
+                    ("出勤管理",         ["owner", "payroll_admin"]),
                     ("給与計算",         ["owner", "payroll_admin"]),
                     ("スタッフ管理",     ["owner", "payroll_admin"]),
                     ("店舗マスター",     ["owner"]),
@@ -2945,6 +2946,8 @@ else:
                 shift_ui.render_shift_request_tab(user)
             elif selected_page == "シフト作成":
                 shift_ui.render_shift_create_tab(user)
+            elif selected_page == "出勤管理":
+                shift_ui.render_attendance_admin_tab(user)
             elif selected_page == "給与計算":
                 shift_ui.render_payroll_tab(user)
             elif selected_page == "スタッフ管理":

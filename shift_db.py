@@ -605,6 +605,39 @@ def get_open_time_log(staff_id: int) -> Optional[dict]:
             return dict(r) if r else None
 
 
+def update_time_log(time_log_id: int, **fields):
+    """打刻ログを部分更新（管理画面の手動修正用）"""
+    if not fields:
+        return
+    sets = ", ".join(f"{k} = %s" for k in fields.keys())
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE time_logs SET {sets}, updated_at = NOW() WHERE id = %s",
+                list(fields.values()) + [time_log_id]
+            )
+
+
+def delete_time_log(time_log_id: int):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM time_logs WHERE id = %s", (time_log_id,))
+
+
+def create_time_log(staff_id: int, store: str, work_date: date,
+                     clock_in_dt: datetime, clock_out_dt: Optional[datetime] = None,
+                     note: str = "") -> int:
+    """打刻ログを手動作成（管理画面用）"""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO time_logs (staff_id, store, work_date, clock_in, clock_out, note)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (staff_id, store, work_date, clock_in_dt, clock_out_dt, note))
+            return cur.fetchone()["id"]
+
+
 def get_time_logs_by_month(year_month: str, store: Optional[str] = None,
                             staff_id: Optional[int] = None) -> list:
     with get_conn() as conn:
